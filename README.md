@@ -4,7 +4,7 @@ golang mapping between xlsx and struct instances.
 
 ## Usage documentation
 
-### Direct write excel file
+### Directly write excel file
 
 ```go
 package main
@@ -48,7 +48,7 @@ you will the the result excel file in [testdata/demo2.xlsx](testdata/demo2.xlsx)
 
 ![image](https://user-images.githubusercontent.com/1940588/77844394-0ee5bb00-71d9-11ea-8671-6b36eb6a728b.png)
 
-### Read excel
+### Read excel with titled row
 
 ```go
 var memberStats []memberStat

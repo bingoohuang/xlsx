@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/araddon/dateparse"
+
 	"github.com/bingoohuang/gor"
 	"github.com/sirupsen/logrus"
 	"github.com/unidoc/unioffice/spreadsheet"
@@ -181,6 +183,18 @@ func (x *Xlsx) createRowBean(beanType reflect.Type, l templateLocation, row spre
 		sf := cell.structField
 		f := rowBean.FieldByIndex(sf.Index)
 		s := c.GetString()
+
+		if sf.Type == timeType {
+			t, err := parseTime(sf, s)
+			if err != nil {
+				return reflect.Value{}, err
+			}
+
+			f.Set(reflect.ValueOf(t))
+
+			continue
+		}
+
 		v, err := gor.CastAny(s, sf.Type)
 
 		if err != nil && sf.Tag.Get("omiterr") != "true" {
@@ -191,6 +205,14 @@ func (x *Xlsx) createRowBean(beanType reflect.Type, l templateLocation, row spre
 	}
 
 	return rowBean, nil
+}
+
+func parseTime(sf reflect.StructField, s string) (time.Time, error) {
+	if f := sf.Tag.Get("format"); f != "" {
+		return time.ParseInLocation(ConvertLayout(f), s, time.Local)
+	}
+
+	return dateparse.ParseLocal(s)
 }
 
 func (x *Xlsx) createSheet(ttag reflect.StructTag, readonly bool) spreadsheet.Sheet {
@@ -247,7 +269,7 @@ func collectExportableFields(t reflect.Type) []reflect.StructField {
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
 
-		if f.PkgPath != "" || f.Type == ttype {
+		if f.PkgPath != "" || f.Type == tType {
 			continue
 		}
 
@@ -259,7 +281,7 @@ func collectExportableFields(t reflect.Type) []reflect.StructField {
 
 func findTTag(t reflect.Type) reflect.StructTag {
 	for i := 0; i < t.NumField(); i++ {
-		if f := t.Field(i); f.Type == ttype {
+		if f := t.Field(i); f.Type == tType {
 			return f.Tag
 		}
 	}
@@ -440,8 +462,10 @@ func (x *Xlsx) removeTempleRows(l templateLocation) {
 	}
 }
 
+// nolint gochecknoglobals
 var (
-	ttype = reflect.TypeOf((*T)(nil)).Elem() // nolint gochecknoglobals
+	tType    = reflect.TypeOf((*T)(nil)).Elem()
+	timeType = reflect.TypeOf((*time.Time)(nil)).Elem()
 )
 
 // ConvertLayout converts the time format in java to golang.

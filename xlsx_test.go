@@ -38,12 +38,13 @@ type orderStat struct {
 func Test2(t *testing.T) {
 	x := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
 
-	writeData(t, x, "testdata/test2.xlsx")
+	writeData(t, time.Now(), x, "testdata/test2.xlsx")
 }
 
 func Test1(t *testing.T) {
+	now := startOfDay(time.Now())
 	x := xlsx.New()
-	writeData(t, x, "testdata/test1.xlsx")
+	writeData(t, now, x, "testdata/test1.xlsx")
 
 	var memberStats []memberStat
 
@@ -54,21 +55,36 @@ func Test1(t *testing.T) {
 		{Total: 100, New: 50, Effective: 50},
 		{Total: 200, New: 60, Effective: 140},
 	}, memberStats)
+
+	var schedules []schedule
+
+	assert.Nil(t, x.Read(&schedules))
+
+	assert.Equal(t, []schedule{
+		{Day: now, Num: 100, Subscribes: 500, PublicSubscribes: 400, PrivatesSubscribes: 100},
+		{Day: now.AddDate(0, 0, -1), Num: 101, Subscribes: 501, PublicSubscribes: 401, PrivatesSubscribes: 101},
+		{Day: now.AddDate(0, 0, -2), Num: 102, Subscribes: 502, PublicSubscribes: 402, PrivatesSubscribes: 102},
+	}, schedules)
 }
 
-func writeData(t *testing.T, x *xlsx.Xlsx, file string) {
+func writeData(t *testing.T, now time.Time, x *xlsx.Xlsx, file string) {
 	x.Write([]memberStat{
 		{Total: 100, New: 50, Effective: 50},
 		{Total: 200, New: 60, Effective: 140},
 	})
 
 	x.Write([]schedule{
-		{Day: time.Now(), Num: 100, Subscribes: 500, PublicSubscribes: 400, PrivatesSubscribes: 100},
-		{Day: time.Now().AddDate(0, 0, -1), Num: 101, Subscribes: 501, PublicSubscribes: 401, PrivatesSubscribes: 101},
-		{Day: time.Now().AddDate(0, 0, -2), Num: 102, Subscribes: 502, PublicSubscribes: 402, PrivatesSubscribes: 102},
+		{Day: now, Num: 100, Subscribes: 500, PublicSubscribes: 400, PrivatesSubscribes: 100},
+		{Day: now.AddDate(0, 0, -1), Num: 101, Subscribes: 501, PublicSubscribes: 401, PrivatesSubscribes: 101},
+		{Day: now.AddDate(0, 0, -2), Num: 102, Subscribes: 502, PublicSubscribes: 402, PrivatesSubscribes: 102},
 	})
 
 	x.Write([]orderStat{})
 
 	assert.Nil(t, x.Save(file))
+}
+
+func startOfDay(t time.Time) time.Time {
+	year, month, day := t.Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, t.Location())
 }

@@ -209,7 +209,7 @@ func (x *Xlsx) createRowBean(beanType reflect.Type, l templateLocation, row spre
 
 func parseTime(sf reflect.StructField, s string) (time.Time, error) {
 	if f := sf.Tag.Get("format"); f != "" {
-		return time.ParseInLocation(ConvertLayout(f), s, time.Local)
+		return time.ParseInLocation(ParseJavaTimeFormat(f), s, time.Local)
 	}
 
 	return dateparse.ParseLocal(s)
@@ -305,17 +305,22 @@ func (x *Xlsx) writeRow(fields []reflect.StructField, value reflect.Value) {
 func setCellValue(cell spreadsheet.Cell, field reflect.StructField, value reflect.Value) {
 	v := value.FieldByIndex(field.Index).Interface()
 
+	if fv, ok := ConvertNumberToFloat64(v); ok {
+		cell.SetNumber(fv)
+		return
+	}
+
 	switch fv := v.(type) {
 	case time.Time:
 		if format := field.Tag.Get("format"); format != "" {
-			cell.SetString(fv.Format(ConvertLayout(format)))
+			cell.SetString(fv.Format(ParseJavaTimeFormat(format)))
 		} else {
 			cell.SetTime(fv)
 		}
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
-		cell.SetNumber(convertToFloat64(v))
 	case string:
 		cell.SetString(fv)
+	case bool:
+		cell.SetBool(fv)
 	}
 }
 
@@ -323,8 +328,7 @@ func (x *Xlsx) writeTitles(fields []reflect.StructField, titles []string) {
 	row := x.currentSheet.AddRow()
 
 	for i := range fields {
-		cell := row.AddCell()
-		cell.SetString(titles[i])
+		row.AddCell().SetString(titles[i])
 	}
 }
 
@@ -344,14 +348,14 @@ func (t *templateLocation) isValid() bool {
 	return len(t.templateCells) > 0
 }
 
-func (x *Xlsx) locateTitles(fields []reflect.StructField, titles []string, forread bool) templateLocation {
+func (x *Xlsx) locateTitles(fields []reflect.StructField, titles []string, forRead bool) templateLocation {
 	if !x.hasInput() {
 		return templateLocation{}
 	}
 
 	rows := x.currentSheet.Rows()
 	titledRowIndex, templateCells := x.findTemplateTitledRow(fields, titles, rows)
-	templateRows := x.findTemplateRows(titledRowIndex, templateCells, rows, forread)
+	templateRows := x.findTemplateRows(titledRowIndex, templateCells, rows, forRead)
 
 	return templateLocation{
 		titledRowIndex: titledRowIndex,
@@ -400,7 +404,7 @@ func (x *Xlsx) findTemplateTitledRow(fields []reflect.StructField,
 }
 
 func (x *Xlsx) findTemplateRows(titledRowIndex int,
-	templateCells []templateCell, rows []spreadsheet.Row, forread bool) []spreadsheet.Row {
+	templateCells []templateCell, rows []spreadsheet.Row, forRead bool) []spreadsheet.Row {
 	templateRows := make([]spreadsheet.Row, 0)
 
 	if titledRowIndex < 0 {
@@ -410,7 +414,7 @@ func (x *Xlsx) findTemplateRows(titledRowIndex int,
 	col := templateCells[0].cellColumn
 
 	for i := titledRowIndex + 1; i < len(rows); i++ {
-		if forread || strings.Contains(rows[i].Cell(col).GetString(), "template") {
+		if forRead || strings.Contains(rows[i].Cell(col).GetString(), "template") {
 			templateRows = append(templateRows, rows[i])
 		} else if len(templateRows) == 0 {
 			return append(templateRows, rows[i])
@@ -454,11 +458,11 @@ func (x *Xlsx) removeTempleRows(l templateLocation) {
 		return // no template rows in the template file.
 	}
 
-	sd := x.currentSheet.X().CT_Worksheet.SheetData
-	rows := sd.Row
+	sheetData := x.currentSheet.X().CT_Worksheet.SheetData
+	rows := sheetData.Row
 
 	if endIndex := l.titledRowIndex + 1 + x.rowsWritten; endIndex < len(rows) {
-		sd.Row = rows[:endIndex]
+		sheetData.Row = rows[:endIndex]
 	}
 }
 
@@ -468,8 +472,8 @@ var (
 	timeType = reflect.TypeOf((*time.Time)(nil)).Elem()
 )
 
-// ConvertLayout converts the time format in java to golang.
-func ConvertLayout(layout string) string {
+// ParseJavaTimeFormat converts the time format in java to golang.
+func ParseJavaTimeFormat(layout string) string {
 	lo := layout
 	lo = strings.Replace(lo, "yyyy", "2006", -1)
 	lo = strings.Replace(lo, "yy", "06", -1)
@@ -483,33 +487,35 @@ func ConvertLayout(layout string) string {
 	return lo
 }
 
-func convertToFloat64(v interface{}) float64 {
+// ConvertNumberToFloat64 converts a number value to float64.
+// If the value is not a number, it returns 0, false.
+func ConvertNumberToFloat64(v interface{}) (float64, bool) {
 	switch fv := v.(type) {
 	case int:
-		return float64(fv)
+		return float64(fv), true
 	case int8:
-		return float64(fv)
+		return float64(fv), true
 	case int16:
-		return float64(fv)
+		return float64(fv), true
 	case int32:
-		return float64(fv)
+		return float64(fv), true
 	case int64:
-		return float64(fv)
+		return float64(fv), true
 	case uint:
-		return float64(fv)
+		return float64(fv), true
 	case uint8:
-		return float64(fv)
+		return float64(fv), true
 	case uint16:
-		return float64(fv)
+		return float64(fv), true
 	case uint32:
-		return float64(fv)
+		return float64(fv), true
 	case uint64:
-		return float64(fv)
+		return float64(fv), true
 	case float32:
-		return float64(fv)
+		return float64(fv), true
 	case float64:
-		return fv
+		return fv, true
 	}
 
-	return 0
+	return 0, false
 }

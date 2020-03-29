@@ -321,6 +321,8 @@ func setCellValue(cell spreadsheet.Cell, field reflect.StructField, value reflec
 		cell.SetString(fv)
 	case bool:
 		cell.SetBool(fv)
+	case nil:
+		cell.SetString("")
 	}
 }
 

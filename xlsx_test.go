@@ -44,6 +44,16 @@ func Test2(t *testing.T) {
 func Test1(t *testing.T) {
 	x := xlsx.New()
 	writeData(t, x, "testdata/test1.xlsx")
+
+	var memberStats []memberStat
+
+	x = xlsx.New(xlsx.WithInputFile("testdata/test1.xlsx"))
+	assert.Nil(t, x.Read(&memberStats))
+
+	assert.Equal(t, []memberStat{
+		{Total: 100, New: 50, Effective: 50},
+		{Total: 200, New: 60, Effective: 140},
+	}, memberStats)
 }
 
 func writeData(t *testing.T, x *xlsx.Xlsx, file string) {

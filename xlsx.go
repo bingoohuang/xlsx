@@ -1,10 +1,12 @@
 package xlsx
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 	"time"
 
+	"github.com/bingoohuang/gor"
 	"github.com/sirupsen/logrus"
 	"github.com/unidoc/unioffice/spreadsheet"
 )
@@ -20,7 +22,7 @@ type Xlsx struct {
 	rowsWritten  int
 }
 
-func (x *Xlsx) hasTemplate() bool { return x.option.TemplateFile != "" }
+func (x *Xlsx) hasInput() bool { return x.option.TemplateFile != "" || x.option.InputFile != "" }
 
 // New creates a new instance of Xlsx.
 func New(optionFns ...OptionFn) *Xlsx {
@@ -33,6 +35,12 @@ func New(optionFns ...OptionFn) *Xlsx {
 	if t := xlsx.option.TemplateFile; t != "" {
 		if xlsx.workbook, err = spreadsheet.Open(t); err != nil {
 			logrus.Warnf("failed to open template file %s: %v", t, err)
+		}
+	}
+
+	if t := xlsx.option.InputFile; t != "" {
+		if xlsx.workbook, err = spreadsheet.Open(t); err != nil {
+			logrus.Warnf("failed to open input file %s: %v", t, err)
 		}
 	}
 
@@ -56,15 +64,17 @@ func createOption(optionFns []OptionFn) *Option {
 // Option defines the option for the xlsx processing.
 type Option struct {
 	TemplateFile string
+	InputFile    string
 }
 
 // OptionFn defines the func to change the option.
 type OptionFn func(*Option)
 
-// WithTemplate defines the template excel file the writing.
-func WithTemplate(templateFile string) OptionFn {
-	return func(o *Option) { o.TemplateFile = templateFile }
-}
+// WithTemplate defines the template excel file for writing template.
+func WithTemplate(f string) OptionFn { return func(o *Option) { o.TemplateFile = f } }
+
+// WithInputFile defines the input excel file for reading.
+func WithInputFile(f string) OptionFn { return func(o *Option) { o.InputFile = f } }
 
 // Write Writes beans to the underlying xlsx.
 func (x *Xlsx) Write(beans interface{}) {
@@ -81,12 +91,11 @@ func (x *Xlsx) Write(beans interface{}) {
 	}
 
 	ttag := findTTag(beanType)
-	x.currentSheet = x.createSheet(ttag)
+	x.currentSheet = x.createSheet(ttag, false)
 
 	fields := collectExportableFields(beanType)
 	titles, customizedTitle := collectTitles(fields)
-
-	location := x.locateTitles(fields, titles)
+	location := x.locateTitles(fields, titles, false)
 	customizedTitle = customizedTitle && !location.isValid()
 
 	if writeTitle := customizedTitle || ttag.Get("title") != ""; writeTitle {
@@ -118,13 +127,79 @@ func (x *Xlsx) Write(beans interface{}) {
 	}
 }
 
-func (x *Xlsx) createSheet(ttag reflect.StructTag) spreadsheet.Sheet {
+func (x *Xlsx) Read(slicePtr interface{}) error {
+	v := reflect.ValueOf(slicePtr)
+	if v.Kind() != reflect.Ptr || v.Elem().Kind() != reflect.Slice {
+		return errors.New("the input argument should be a pointer of slice")
+	}
+
+	beanType := v.Elem().Type().Elem()
+
+	ttag := findTTag(beanType)
+	x.currentSheet = x.createSheet(ttag, true)
+
+	fields := collectExportableFields(beanType)
+	titles, _ := collectTitles(fields)
+	location := x.locateTitles(fields, titles, true)
+
+	if location.isValid() {
+		slice, err := x.readRows(beanType, location)
+		if err != nil {
+			return err
+		}
+
+		v.Elem().Set(slice)
+	}
+
+	return nil
+}
+
+func (x *Xlsx) readRows(beanType reflect.Type, l templateLocation) (reflect.Value, error) {
+	slice := reflect.MakeSlice(reflect.SliceOf(beanType), 0, len(l.templateRows))
+
+	for _, row := range l.templateRows {
+		rowBean, err := x.createRowBean(beanType, l, row)
+		if err != nil {
+			return reflect.Value{}, err
+		}
+
+		slice = reflect.Append(slice, rowBean)
+	}
+
+	return slice, nil
+}
+
+func (x *Xlsx) createRowBean(beanType reflect.Type, l templateLocation, row spreadsheet.Row) (reflect.Value, error) {
+	rowBean := reflect.New(beanType).Elem()
+
+	for _, cell := range l.templateCells {
+		c := row.Cell(cell.cellColumn)
+		if c.IsEmpty() {
+			continue
+		}
+
+		sf := cell.structField
+		f := rowBean.FieldByIndex(sf.Index)
+		s := c.GetString()
+		v, err := gor.CastAny(s, sf.Type)
+
+		if err != nil && sf.Tag.Get("omiterr") != "true" {
+			return reflect.Value{}, err
+		}
+
+		f.Set(v)
+	}
+
+	return rowBean, nil
+}
+
+func (x *Xlsx) createSheet(ttag reflect.StructTag, readonly bool) spreadsheet.Sheet {
 	sheetName := ttag.Get("sheet")
 	wbSheet := spreadsheet.Sheet{}
 
-	if x.hasTemplate() {
+	if x.hasInput() {
 		for _, sheet := range x.workbook.Sheets() {
-			if sheet.Name() == sheetName {
+			if strings.Contains(sheet.Name(), sheetName) {
 				return sheet
 			}
 		}
@@ -132,6 +207,10 @@ func (x *Xlsx) createSheet(ttag reflect.StructTag) spreadsheet.Sheet {
 		if len(x.workbook.Sheets()) > 0 {
 			wbSheet = x.workbook.Sheets()[0]
 		}
+	}
+
+	if readonly {
+		return wbSheet
 	}
 
 	if !wbSheet.IsValid() {
@@ -243,14 +322,14 @@ func (t *templateLocation) isValid() bool {
 	return len(t.templateCells) > 0
 }
 
-func (x *Xlsx) locateTitles(fields []reflect.StructField, titles []string) templateLocation {
-	if !x.hasTemplate() {
+func (x *Xlsx) locateTitles(fields []reflect.StructField, titles []string, forread bool) templateLocation {
+	if !x.hasInput() {
 		return templateLocation{}
 	}
 
 	rows := x.currentSheet.Rows()
 	titledRowIndex, templateCells := x.findTemplateTitledRow(fields, titles, rows)
-	templateRows := x.findTemplateRows(titledRowIndex, templateCells, rows)
+	templateRows := x.findTemplateRows(titledRowIndex, templateCells, rows, forread)
 
 	return templateLocation{
 		titledRowIndex: titledRowIndex,
@@ -299,7 +378,7 @@ func (x *Xlsx) findTemplateTitledRow(fields []reflect.StructField,
 }
 
 func (x *Xlsx) findTemplateRows(titledRowIndex int,
-	templateCells []templateCell, rows []spreadsheet.Row) []spreadsheet.Row {
+	templateCells []templateCell, rows []spreadsheet.Row, forread bool) []spreadsheet.Row {
 	templateRows := make([]spreadsheet.Row, 0)
 
 	if titledRowIndex < 0 {
@@ -309,7 +388,7 @@ func (x *Xlsx) findTemplateRows(titledRowIndex int,
 	col := templateCells[0].cellColumn
 
 	for i := titledRowIndex + 1; i < len(rows); i++ {
-		if strings.Contains(rows[i].Cell(col).GetString(), "template") {
+		if forread || strings.Contains(rows[i].Cell(col).GetString(), "template") {
 			templateRows = append(templateRows, rows[i])
 		} else if len(templateRows) == 0 {
 			return append(templateRows, rows[i])

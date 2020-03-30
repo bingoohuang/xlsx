@@ -2,6 +2,7 @@ package xlsx
 
 import (
 	"errors"
+	"io"
 	"reflect"
 	"strings"
 	"time"
@@ -28,9 +29,7 @@ func (x *Xlsx) hasInput() bool { return x.option.TemplateFile != "" || x.option.
 
 // New creates a new instance of Xlsx.
 func New(optionFns ...OptionFn) *Xlsx {
-	xlsx := &Xlsx{
-		option: createOption(optionFns),
-	}
+	xlsx := &Xlsx{option: createOption(optionFns)}
 
 	var err error
 
@@ -77,6 +76,11 @@ func WithTemplate(f string) OptionFn { return func(o *Option) { o.TemplateFile =
 
 // WithInputFile defines the input excel file for reading.
 func WithInputFile(f string) OptionFn { return func(o *Option) { o.InputFile = f } }
+
+// Close does some cleanup like remove temporary files.
+func (x *Xlsx) Close() error {
+	return x.workbook.Close()
+}
 
 // Write Writes beans to the underlying xlsx.
 func (x *Xlsx) Write(beans interface{}) {
@@ -289,10 +293,11 @@ func findTTag(t reflect.Type) reflect.StructTag {
 	return ""
 }
 
-// Save persists to the excel file.
-func (x *Xlsx) Save(file string) error {
-	return x.workbook.SaveToFile(file)
-}
+// SaveToFile writes the workbook out to a file.
+func (x *Xlsx) SaveToFile(file string) error { return x.workbook.SaveToFile(file) }
+
+// Save writes the workbook out to a writer in the zipped xlsx format.
+func (x *Xlsx) Save(w io.Writer) error { return x.workbook.Save(w) }
 
 func (x *Xlsx) writeRow(fields []reflect.StructField, value reflect.Value) {
 	row := x.currentSheet.AddRow()

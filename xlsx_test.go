@@ -37,6 +37,7 @@ type orderStat struct {
 
 func Test2(t *testing.T) {
 	x := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
+	defer x.Close()
 
 	writeData(t, time.Now(), x, "testdata/test2.xlsx")
 }
@@ -44,12 +45,17 @@ func Test2(t *testing.T) {
 func Test1(t *testing.T) {
 	now := startOfDay(time.Now())
 	x := xlsx.New()
+
+	defer x.Close()
+
 	writeData(t, now, x, "testdata/test1.xlsx")
 
 	var memberStats []memberStat
 
-	x = xlsx.New(xlsx.WithInputFile("testdata/test1.xlsx"))
-	assert.Nil(t, x.Read(&memberStats))
+	x2 := xlsx.New(xlsx.WithInputFile("testdata/test1.xlsx"))
+	defer x2.Close()
+
+	assert.Nil(t, x2.Read(&memberStats))
 
 	assert.Equal(t, []memberStat{
 		{Total: 100, New: 50, Effective: 50},
@@ -58,7 +64,7 @@ func Test1(t *testing.T) {
 
 	var schedules []schedule
 
-	assert.Nil(t, x.Read(&schedules))
+	assert.Nil(t, x2.Read(&schedules))
 
 	assert.Equal(t, []schedule{
 		{Day: now, Num: 100, Subscribes: 500, PublicSubscribes: 400, PrivatesSubscribes: 100},
@@ -81,7 +87,7 @@ func writeData(t *testing.T, now time.Time, x *xlsx.Xlsx, file string) {
 
 	x.Write([]orderStat{})
 
-	assert.Nil(t, x.Save(file))
+	assert.Nil(t, x.SaveToFile(file))
 }
 
 func startOfDay(t time.Time) time.Time {

@@ -8,20 +8,24 @@ import (
 
 func TestDemo1(t *testing.T) {
 	x := xlsx.New()
+	defer x.Close()
+
 	x.Write([]memberStat{
 		{Total: 100, New: 50, Effective: 50},
 		{Total: 200, New: 60, Effective: 140},
 	})
 
-	_ = x.Save("testdata/demo1.xlsx")
+	_ = x.SaveToFile("testdata/demo1.xlsx")
 }
 
 func TestDemo2(t *testing.T) {
 	x := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
+	defer x.Close()
+
 	x.Write([]memberStat{
 		{Total: 100, New: 50, Effective: 50},
 		{Total: 200, New: 60, Effective: 140},
 	})
 
-	_ = x.Save("testdata/demo2.xlsx")
+	_ = x.SaveToFile("testdata/demo2.xlsx")
 }

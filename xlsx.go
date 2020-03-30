@@ -28,20 +28,20 @@ type Xlsx struct {
 func (x *Xlsx) hasInput() bool { return x.option.TemplateFile != "" || x.option.InputFile != "" }
 
 // New creates a new instance of Xlsx.
-func New(optionFns ...OptionFn) *Xlsx {
-	xlsx := &Xlsx{option: createOption(optionFns)}
-
-	var err error
+func New(optionFns ...OptionFn) (xlsx *Xlsx, err error) {
+	xlsx = &Xlsx{option: createOption(optionFns)}
 
 	if t := xlsx.option.TemplateFile; t != "" {
 		if xlsx.workbook, err = spreadsheet.Open(t); err != nil {
 			logrus.Warnf("failed to open template file %s: %v", t, err)
+			return nil, err
 		}
 	}
 
 	if t := xlsx.option.InputFile; t != "" {
 		if xlsx.workbook, err = spreadsheet.Open(t); err != nil {
 			logrus.Warnf("failed to open input file %s: %v", t, err)
+			return nil, err
 		}
 	}
 
@@ -49,7 +49,7 @@ func New(optionFns ...OptionFn) *Xlsx {
 		xlsx.workbook = spreadsheet.New()
 	}
 
-	return xlsx
+	return xlsx, nil
 }
 
 func createOption(optionFns []OptionFn) *Option {

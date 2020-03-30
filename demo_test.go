@@ -7,7 +7,7 @@ import (
 )
 
 func TestDemo1(t *testing.T) {
-	x := xlsx.New()
+	x, _ := xlsx.New()
 	defer x.Close()
 
 	x.Write([]memberStat{
@@ -19,7 +19,7 @@ func TestDemo1(t *testing.T) {
 }
 
 func TestDemo2(t *testing.T) {
-	x := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
+	x, _ := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
 	defer x.Close()
 
 	x.Write([]memberStat{

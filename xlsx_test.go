@@ -36,7 +36,7 @@ type orderStat struct {
 }
 
 func Test2(t *testing.T) {
-	x := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
+	x, _ := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
 	defer x.Close()
 
 	writeData(t, time.Now(), x, "testdata/test2.xlsx")
@@ -44,7 +44,7 @@ func Test2(t *testing.T) {
 
 func Test1(t *testing.T) {
 	now := startOfDay(time.Now())
-	x := xlsx.New()
+	x, _ := xlsx.New()
 
 	defer x.Close()
 
@@ -52,7 +52,7 @@ func Test1(t *testing.T) {
 
 	var memberStats []memberStat
 
-	x2 := xlsx.New(xlsx.WithInputFile("testdata/test1.xlsx"))
+	x2, _ := xlsx.New(xlsx.WithInputFile("testdata/test1.xlsx"))
 	defer x2.Close()
 
 	assert.Nil(t, x2.Read(&memberStats))

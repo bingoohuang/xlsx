@@ -45,6 +45,13 @@ func New(optionFns ...OptionFn) (xlsx *Xlsx, err error) {
 		}
 	}
 
+	if t := xlsx.option.httpUpload; t != nil {
+		if xlsx.workbook, err = t.parseUploadFile(); err != nil {
+			logrus.Warnf("failed to parseUploadFile for the file key %s: %v", t.filenameKey, err)
+			return nil, err
+		}
+	}
+
 	if xlsx.workbook == nil {
 		xlsx.workbook = spreadsheet.New()
 	}
@@ -66,6 +73,7 @@ func createOption(optionFns []OptionFn) *Option {
 type Option struct {
 	TemplateFile string
 	InputFile    string
+	httpUpload   *upload
 }
 
 // OptionFn defines the func to change the option.

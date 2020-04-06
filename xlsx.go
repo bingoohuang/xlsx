@@ -2,6 +2,7 @@ package xlsx
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"reflect"
 	"strings"
@@ -74,6 +75,7 @@ type Option struct {
 	TemplateFile string
 	InputFile    string
 	httpUpload   *upload
+	Validations  map[string][]string
 }
 
 // OptionFn defines the func to change the option.
@@ -85,13 +87,16 @@ func WithTemplate(f string) OptionFn { return func(o *Option) { o.TemplateFile =
 // WithInputFile defines the input excel file for reading.
 func WithInputFile(f string) OptionFn { return func(o *Option) { o.InputFile = f } }
 
+// WithValidations defines the validations for the cells.
+func WithValidations(v map[string][]string) OptionFn { return func(o *Option) { o.Validations = v } }
+
 // Close does some cleanup like remove temporary files.
 func (x *Xlsx) Close() error {
 	return x.workbook.Close()
 }
 
 // Write Writes beans to the underlying xlsx.
-func (x *Xlsx) Write(beans interface{}) {
+func (x *Xlsx) Write(beans interface{}) error {
 	beanReflectValue := reflect.ValueOf(beans)
 	beanType := beanReflectValue.Type()
 	isSlice := beanReflectValue.Kind() == reflect.Slice
@@ -129,7 +134,7 @@ func (x *Xlsx) Write(beans interface{}) {
 
 		x.removeTempleRows(location)
 
-		return
+		return x.createTemplateDataValidations(location, x.currentSheet)
 	}
 
 	if isSlice {
@@ -139,6 +144,69 @@ func (x *Xlsx) Write(beans interface{}) {
 	} else {
 		x.writeRow(fields, beanReflectValue)
 	}
+
+	return x.createDataValidations(fields, x.currentSheet)
+}
+
+func (x *Xlsx) createDataValidations(fields []reflect.StructField, sheet spreadsheet.Sheet) error {
+	for i, field := range fields {
+		cellColumn, _ := sheet.Rows()[0].Cells()[i].Column()
+
+		dv := field.Tag.Get("dataValidation")
+		// nolint gomnd
+		if err := x.createColumnDataValidation(2, sheet, dv, cellColumn); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (x *Xlsx) createTemplateDataValidations(l templateLocation, sheet spreadsheet.Sheet) error {
+	for _, tc := range l.templateCells {
+		cellColumn := tc.cellColumn
+
+		dv := tc.structField.Tag.Get("dataValidation")
+		// nolint gomnd
+		if err := x.createColumnDataValidation(l.titledRowIndex+2, sheet, dv, cellColumn); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (x *Xlsx) createColumnDataValidation(startRowNum int, sheet spreadsheet.Sheet, tag, cellColumn string) error {
+	if tag == "" {
+		return nil
+	}
+
+	dvCombo := sheet.AddDataValidation()
+	rangeRef := fmt.Sprintf("%s%d:%s%d", cellColumn, startRowNum, cellColumn, startRowNum+x.rowsWritten)
+
+	dvCombo.SetRange(rangeRef)
+
+	dvList := dvCombo.SetList()
+
+	if strings.Contains(tag, "!") {
+		dvs := strings.Split(tag, "!")
+		dvSheetName, validateRange := dvs[0], dvs[1]
+		vsheet := x.findSheet(dvSheetName)
+
+		if !vsheet.IsValid() {
+			return fmt.Errorf("unable to find sheet with name %s", dvSheetName)
+		}
+
+		dvList.SetRange(vsheet.RangeReference(validateRange))
+	} else {
+		if vm, ok := x.option.Validations[tag]; ok {
+			dvList.SetValues(vm)
+		} else {
+			dvList.SetValues(strings.Split(tag, ","))
+		}
+	}
+
+	return nil
 }
 
 func (x *Xlsx) Read(slicePtr interface{}) error {
@@ -232,10 +300,8 @@ func (x *Xlsx) createSheet(ttag reflect.StructTag, readonly bool) spreadsheet.Sh
 	wbSheet := spreadsheet.Sheet{}
 
 	if x.hasInput() {
-		for _, sheet := range x.workbook.Sheets() {
-			if strings.Contains(sheet.Name(), sheetName) {
-				return sheet
-			}
+		if sh := x.findSheet(sheetName); sh.IsValid() {
+			return sh
 		}
 
 		if len(x.workbook.Sheets()) > 0 {
@@ -309,6 +375,7 @@ func (x *Xlsx) Save(w io.Writer) error { return x.workbook.Save(w) }
 
 func (x *Xlsx) writeRow(fields []reflect.StructField, value reflect.Value) {
 	row := x.currentSheet.AddRow()
+	x.rowsWritten++
 
 	for _, field := range fields {
 		setCellValue(row.AddCell(), field, value)
@@ -460,7 +527,8 @@ func (x *Xlsx) copyRowStyle(l templateLocation, row spreadsheet.Row) {
 	templateRow := l.templateRows[(x.rowsWritten-1)%len(l.templateRows)]
 
 	for _, tc := range l.templateCells { // copying cell style
-		if cx := templateRow.Cell(tc.cellColumn).X(); cx.SAttr != nil {
+		cell := templateRow.Cell(tc.cellColumn)
+		if cx := cell.X(); cx.SAttr != nil {
 			if style := x.workbook.StyleSheet.GetCellStyle(*cx.SAttr); !style.IsEmpty() {
 				row.Cell(tc.cellColumn).SetStyle(style)
 			}
@@ -479,6 +547,16 @@ func (x *Xlsx) removeTempleRows(l templateLocation) {
 	if endIndex := l.titledRowIndex + 1 + x.rowsWritten; endIndex < len(rows) {
 		sheetData.Row = rows[:endIndex]
 	}
+}
+
+func (x *Xlsx) findSheet(sheetName string) spreadsheet.Sheet {
+	for _, sheet := range x.workbook.Sheets() {
+		if strings.Contains(sheet.Name(), sheetName) {
+			return sheet
+		}
+	}
+
+	return spreadsheet.Sheet{}
 }
 
 // nolint gochecknoglobals

@@ -75,3 +75,58 @@ assert.Equal(t, []memberStat{
     {Total: 200, New: 60, Effective: 140},
 }, memberStats)
 ```
+
+
+### create data validation
+
+1. Method 1: use template sheet to list the validation datas like:
+
+![image](https://user-images.githubusercontent.com/1940588/78579374-692eed80-7863-11ea-931e-ab74035baa1b.png)
+
+then declare the data validation tag `dataValidation` like:
+
+```go
+type Member struct {
+	Area      string `title:"区域" dataValidation:"Validation!A1:A3"`
+	Total     int    `title:"会员总数"`
+	New       int    `title:"其中：新增"`
+	Effective int    `title:"其中：有效"`
+}
+```
+
+2. Method 2: directly give the list in tag `dataValidation` with comma-separated like:
+
+```go
+type Member struct {
+	Area      string `title:"区域" dataValidation:"A,B,C"`
+	Total     int    `title:"会员总数"`
+	New       int    `title:"其中：新增"`
+	Effective int    `title:"其中：有效"`
+}
+```
+
+3. Method 3: programmatically declares and specified the key name in the tag `dataValidation` like:
+
+```go
+type Member struct {
+	Area      string `title:"区域" dataValidation:"areas"`
+	Total     int    `title:"会员总数"`
+	New       int    `title:"其中：新增"`
+	Effective int    `title:"其中：有效"`
+}
+
+func demo() {
+	x, _ := xlsx.New(xlsx.WithValidations(map[string][]string{
+		"areas": {"A23", "B23", "C23"},
+	}))
+	defer x.Close()
+
+	_ = x.Write([]memberStat23{
+		{Area: "A23", Total: 100, New: 50, Effective: 50},
+		{Area: "B23", Total: 200, New: 60, Effective: 140},
+		{Area: "C23", Total: 300, New: 70, Effective: 240},
+	})
+
+	_ = x.SaveToFile("result.xlsx")
+}
+```

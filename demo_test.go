@@ -10,7 +10,7 @@ func TestDemo1(t *testing.T) {
 	x, _ := xlsx.New()
 	defer x.Close()
 
-	x.Write([]memberStat{
+	_ = x.Write([]memberStat{
 		{Total: 100, New: 50, Effective: 50},
 		{Total: 200, New: 60, Effective: 140},
 	})
@@ -22,7 +22,7 @@ func TestDemo2(t *testing.T) {
 	x, _ := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
 	defer x.Close()
 
-	x.Write([]memberStat{
+	_ = x.Write([]memberStat{
 		{Total: 100, New: 50, Effective: 50},
 		{Total: 200, New: 60, Effective: 140},
 	})

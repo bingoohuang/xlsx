@@ -39,7 +39,7 @@ func Test2(t *testing.T) {
 	x, _ := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
 	defer x.Close()
 
-	writeData(t, time.Now(), x, "testdata/test2.xlsx")
+	writeData(t, time.Now(), x, "testdata/out_template.xlsx")
 }
 
 func Test1(t *testing.T) {
@@ -48,11 +48,11 @@ func Test1(t *testing.T) {
 
 	defer x.Close()
 
-	writeData(t, now, x, "testdata/test1.xlsx")
+	writeData(t, now, x, "testdata/out_direct.xlsx")
 
 	var memberStats []memberStat
 
-	x2, _ := xlsx.New(xlsx.WithInputFile("testdata/test1.xlsx"))
+	x2, _ := xlsx.New(xlsx.WithInputFile("testdata/out_direct.xlsx"))
 	defer x2.Close()
 
 	assert.Nil(t, x2.Read(&memberStats))

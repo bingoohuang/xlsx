@@ -1,9 +1,11 @@
 package xlsx
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"reflect"
 	"strings"
 	"time"
@@ -29,35 +31,67 @@ type Xlsx struct {
 func (x *Xlsx) hasInput() bool { return x.option.TemplateFile != "" || x.option.InputFile != "" }
 
 // New creates a new instance of Xlsx.
-func New(optionFns ...OptionFn) (xlsx *Xlsx, err error) {
-	xlsx = &Xlsx{option: createOption(optionFns)}
+func New(optionFns ...OptionFn) (x *Xlsx, err error) {
+	x = &Xlsx{option: createOption(optionFns)}
 
-	if t := xlsx.option.TemplateFile; t != "" {
-		if xlsx.workbook, err = spreadsheet.Open(t); err != nil {
+	if err := x.readFile(); err != nil {
+		return nil, err
+	}
+
+	if err := x.readerExcel(); err != nil {
+		return nil, err
+	}
+
+	if x.workbook == nil {
+		x.workbook = spreadsheet.New()
+	}
+
+	return x, nil
+}
+
+func (x *Xlsx) readFile() (err error) {
+	if t := x.option.TemplateFile; t != "" {
+		if x.workbook, err = spreadsheet.Open(t); err != nil {
 			logrus.Warnf("failed to open template file %s: %v", t, err)
-			return nil, err
+			return err
 		}
 	}
 
-	if t := xlsx.option.InputFile; t != "" {
-		if xlsx.workbook, err = spreadsheet.Open(t); err != nil {
+	if t := x.option.InputFile; t != "" {
+		if x.workbook, err = spreadsheet.Open(t); err != nil {
 			logrus.Warnf("failed to open input file %s: %v", t, err)
-			return nil, err
+			return err
 		}
 	}
 
-	if t := xlsx.option.httpUpload; t != nil {
-		if xlsx.workbook, err = t.parseUploadFile(); err != nil {
+	if t := x.option.httpUpload; t != nil {
+		if x.workbook, err = t.parseUploadFile(); err != nil {
 			logrus.Warnf("failed to parseUploadFile for the file key %s: %v", t.filenameKey, err)
-			return nil, err
+			return err
 		}
 	}
 
-	if xlsx.workbook == nil {
-		xlsx.workbook = spreadsheet.New()
+	return nil
+}
+
+func (x *Xlsx) readerExcel() error {
+	t := x.option.Reader
+	if t == nil {
+		return nil
 	}
 
-	return xlsx, nil
+	readerBytes, err := ioutil.ReadAll(t)
+	if err != nil {
+		return err
+	}
+
+	r := bytes.NewReader(readerBytes)
+	if x.workbook, err = spreadsheet.Read(r, int64(len(readerBytes))); err != nil {
+		logrus.Warnf("failed to read input file from the reader: %v", err)
+		return err
+	}
+
+	return nil
 }
 
 func createOption(optionFns []OptionFn) *Option {
@@ -76,6 +110,7 @@ type Option struct {
 	InputFile    string
 	httpUpload   *upload
 	Validations  map[string][]string
+	Reader       io.Reader
 }
 
 // OptionFn defines the func to change the option.
@@ -89,6 +124,9 @@ func WithInputFile(f string) OptionFn { return func(o *Option) { o.InputFile = f
 
 // WithValidations defines the validations for the cells.
 func WithValidations(v map[string][]string) OptionFn { return func(o *Option) { o.Validations = v } }
+
+// WithReader defines the io reader for the writing template or reading excel.
+func WithReader(v io.Reader) OptionFn { return func(o *Option) { o.Reader = v } }
 
 // Close does some cleanup like remove temporary files.
 func (x *Xlsx) Close() error {
@@ -114,7 +152,7 @@ func (x *Xlsx) Write(beans interface{}) error {
 
 	fields := collectExportableFields(beanType)
 	titles, customizedTitle := collectTitles(fields)
-	location := x.locateTitles(fields, titles, false)
+	location := x.locateTitleRow(fields, titles, false)
 	customizedTitle = customizedTitle && !location.isValid()
 
 	if writeTitle := customizedTitle || ttag.Get("title") != ""; writeTitle {
@@ -168,7 +206,7 @@ func (x *Xlsx) createTemplateDataValidations(l templateLocation, sheet spreadshe
 
 		dv := tc.structField.Tag.Get("dataValidation")
 		// nolint gomnd
-		if err := x.createColumnDataValidation(l.titledRowIndex+2, sheet, dv, cellColumn); err != nil {
+		if err := x.createColumnDataValidation(l.titledRowNumber+1, sheet, dv, cellColumn); err != nil {
 			return err
 		}
 	}
@@ -222,7 +260,7 @@ func (x *Xlsx) Read(slicePtr interface{}) error {
 
 	fields := collectExportableFields(beanType)
 	titles, _ := collectTitles(fields)
-	location := x.locateTitles(fields, titles, true)
+	location := x.locateTitleRow(fields, titles, true)
 
 	if location.isValid() {
 		slice, err := x.readRows(beanType, location)
@@ -415,10 +453,10 @@ func (x *Xlsx) writeTitles(fields []reflect.StructField, titles []string) {
 }
 
 type templateLocation struct {
-	titledRowIndex int
-	rowsEndIndex   int
-	templateCells  []templateCell
-	templateRows   []spreadsheet.Row
+	titledRowNumber int
+	rowsEndIndex    int
+	templateCells   []templateCell
+	templateRows    []spreadsheet.Row
 }
 
 type templateCell struct {
@@ -430,29 +468,29 @@ func (t *templateLocation) isValid() bool {
 	return len(t.templateCells) > 0
 }
 
-func (x *Xlsx) locateTitles(fields []reflect.StructField, titles []string, forRead bool) templateLocation {
+func (x *Xlsx) locateTitleRow(fields []reflect.StructField, titles []string, forRead bool) templateLocation {
 	if !x.hasInput() {
 		return templateLocation{}
 	}
 
 	rows := x.currentSheet.Rows()
-	titledRowIndex, templateCells := x.findTemplateTitledRow(fields, titles, rows)
-	templateRows := x.findTemplateRows(titledRowIndex, templateCells, rows, forRead)
+	titledRowNumber, templateCells := x.findTemplateTitledRow(fields, titles, rows)
+	templateRows := x.findTemplateRows(titledRowNumber, templateCells, rows, forRead)
 
 	return templateLocation{
-		titledRowIndex: titledRowIndex,
-		templateRows:   templateRows,
-		templateCells:  templateCells,
-		rowsEndIndex:   len(rows),
+		titledRowNumber: titledRowNumber,
+		templateRows:    templateRows,
+		templateCells:   templateCells,
+		rowsEndIndex:    len(rows),
 	}
 }
 
 func (x *Xlsx) findTemplateTitledRow(fields []reflect.StructField,
 	titles []string, rows []spreadsheet.Row) (int, []templateCell) {
-	titledRowIndex := -1
+	titledRowNumber := -1
 	templateCells := make([]templateCell, 0, len(fields))
 
-	for rowIndex, row := range rows {
+	for _, row := range rows {
 		for _, cell := range row.Cells() {
 			cellString := cell.GetString()
 
@@ -477,25 +515,29 @@ func (x *Xlsx) findTemplateTitledRow(fields []reflect.StructField,
 		}
 
 		if len(templateCells) > 0 {
-			titledRowIndex = rowIndex
+			titledRowNumber = int(row.RowNumber())
 			break
 		}
 	}
 
-	return titledRowIndex, templateCells
+	return titledRowNumber, templateCells
 }
 
-func (x *Xlsx) findTemplateRows(titledRowIndex int,
+func (x *Xlsx) findTemplateRows(titledRowNumber int,
 	templateCells []templateCell, rows []spreadsheet.Row, forRead bool) []spreadsheet.Row {
 	templateRows := make([]spreadsheet.Row, 0)
 
-	if titledRowIndex < 0 {
+	if titledRowNumber < 0 {
 		return templateRows
 	}
 
 	col := templateCells[0].cellColumn
 
-	for i := titledRowIndex + 1; i < len(rows); i++ {
+	for i := 0; i < len(rows); i++ {
+		if rows[i].RowNumber() <= uint32(titledRowNumber) {
+			continue
+		}
+
 		if forRead || strings.Contains(rows[i].Cell(col).GetString(), "template") {
 			templateRows = append(templateRows, rows[i])
 		} else if len(templateRows) == 0 {
@@ -507,8 +549,8 @@ func (x *Xlsx) findTemplateRows(titledRowIndex int,
 }
 
 func (x *Xlsx) writeTemplateRow(l templateLocation, v reflect.Value) {
-	// 2 是为了计算row num(1-N), 从标题行(T+1)的下一行（T+2)开始写
-	num := uint32(l.titledRowIndex + 2 + x.rowsWritten)
+	// 2 是为了计算row num(1-N), 从标题行(T)的下一行（T+1)开始写
+	num := uint32(l.titledRowNumber + 1 + x.rowsWritten)
 	x.rowsWritten++
 	row := x.currentSheet.Row(num)
 
@@ -544,7 +586,7 @@ func (x *Xlsx) removeTempleRows(l templateLocation) {
 	sheetData := x.currentSheet.X().CT_Worksheet.SheetData
 	rows := sheetData.Row
 
-	if endIndex := l.titledRowIndex + 1 + x.rowsWritten; endIndex < len(rows) {
+	if endIndex := l.titledRowNumber + x.rowsWritten; endIndex < len(rows) {
 		sheetData.Row = rows[:endIndex]
 	}
 }

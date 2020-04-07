@@ -15,7 +15,7 @@ func TestDemo1(t *testing.T) {
 		{Total: 200, New: 60, Effective: 140},
 	})
 
-	_ = x.SaveToFile("testdata/demo1.xlsx")
+	_ = x.SaveToFile("testdata/out_demo1.xlsx")
 }
 
 func TestDemo2(t *testing.T) {
@@ -27,5 +27,5 @@ func TestDemo2(t *testing.T) {
 		{Total: 200, New: 60, Effective: 140},
 	})
 
-	_ = x.SaveToFile("testdata/demo2.xlsx")
+	_ = x.SaveToFile("testdata/out_demo2.xlsx")
 }

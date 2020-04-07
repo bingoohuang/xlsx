@@ -130,3 +130,40 @@ func demo() {
 	_ = x.SaveToFile("result.xlsx")
 }
 ```
+
+### 占位模板
+
+![image](https://user-images.githubusercontent.com/1940588/78628536-f9eae500-78c6-11ea-90f0-29b5bb3a4610.png)
+
+```go
+type RegisterTable struct {
+	ContactName  string    // 联系人
+	Mobile       string    // 手机
+	Landline     string    // 座机
+	RegisterDate time.Time // 登记日期
+	DeviceType   string    `placeholderCell:"C9"` // 类型
+	Manufacturer string    // 生产厂家
+	DeviceModern string    // 型号
+}
+
+func demo() {
+	x, _ := xlsx.New(xlsx.WithTemplatePlaceholder("testdata/placeholder.xlsx"))
+	defer x.Close()
+
+	_ = x.Write(RegisterTable{
+		ContactName:  "隔壁老王",
+		Mobile:       "1234567890",
+		Landline:     "010-1234567890",
+		RegisterDate: time.Now(),
+		DeviceType:   "A1",
+		Manufacturer: "来弄你",
+		DeviceModern: "X786",
+	})
+
+
+	_ = x.SaveToFile("testdata/out_placeholder.xlsx")
+}
+
+```
+
+![image](https://user-images.githubusercontent.com/1940588/78628579-17b84a00-78c7-11ea-84bc-1a7e192ee06c.png)

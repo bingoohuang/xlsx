@@ -168,3 +168,64 @@ func TestValidationWith(t *testing.T) {
 
 	_ = x.SaveToFile("testdata/out_validation_with.xlsx")
 }
+
+func TestParsePlaceholder(t *testing.T) {
+	assert.Equal(t, xlsx.PlaceholderValue{
+		PlaceholderVars:   []string{},
+		PlaceholderQuotes: []string{},
+		Content:           "Age",
+	}, xlsx.ParsePlaceholder("Age"))
+
+	assert.Equal(t, xlsx.PlaceholderValue{
+		PlaceholderVars:   []string{"name"},
+		PlaceholderQuotes: []string{"{{name}}"},
+		Content:           "{{name}}",
+	}, xlsx.ParsePlaceholder("{{name}}"))
+
+	assert.Equal(t, xlsx.PlaceholderValue{
+		PlaceholderVars:   []string{"name", "age"},
+		PlaceholderQuotes: []string{"{{name}}", "{{ age }}"},
+		Content:           "{{name}} {{ age }}",
+	}, xlsx.ParsePlaceholder("{{name}} {{ age }}"))
+
+	assert.Equal(t, xlsx.PlaceholderValue{
+		PlaceholderVars:   []string{"name", "age"},
+		PlaceholderQuotes: []string{"{{name}}", "{{ age }}"},
+		Content:           "Hello {{name}} world {{ age }}",
+	}, xlsx.ParsePlaceholder("Hello {{name}} world {{ age }}"))
+
+	assert.Equal(t, xlsx.PlaceholderValue{
+		PlaceholderVars:   []string{},
+		PlaceholderQuotes: []string{},
+		Content:           "Age{{",
+	}, xlsx.ParsePlaceholder("Age{{"))
+}
+
+type RegisterTable struct {
+	ContactName  string    // 联系人
+	Mobile       string    // 手机
+	Landline     string    // 座机
+	RegisterDate time.Time // 登记日期
+	DeviceType   string    `placeholderCell:"C9"` // 类型
+	Manufacturer string    // 生产厂家
+	DeviceModern string    // 型号
+}
+
+func TestPlaceholder(t *testing.T) {
+	x, _ := xlsx.New(xlsx.WithTemplatePlaceholder("testdata/placeholder.xlsx"))
+	defer x.Close()
+
+	err := x.Write(RegisterTable{
+		ContactName:  "隔壁老王",
+		Mobile:       "1234567890",
+		Landline:     "010-1234567890",
+		RegisterDate: time.Now(),
+		DeviceType:   "A1",
+		Manufacturer: "来弄你",
+		DeviceModern: "X786",
+	})
+
+	assert.Nil(t, err)
+
+	_ = x.SaveToFile("testdata/out_placeholder.xlsx")
+}

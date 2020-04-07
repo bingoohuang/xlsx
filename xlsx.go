@@ -111,6 +111,7 @@ type Option struct {
 	httpUpload   *upload
 	Validations  map[string][]string
 	Reader       io.Reader
+	Placeholder  bool
 }
 
 // OptionFn defines the func to change the option.
@@ -118,6 +119,11 @@ type OptionFn func(*Option)
 
 // WithTemplate defines the template excel file for writing template.
 func WithTemplate(f string) OptionFn { return func(o *Option) { o.TemplateFile = f } }
+
+// WithTemplatePlaceholder defines the template excel file for writing template in placeholder mode.
+func WithTemplatePlaceholder(f string) OptionFn {
+	return func(o *Option) { o.TemplateFile = f; o.Placeholder = true }
+}
 
 // WithInputFile defines the input excel file for reading.
 func WithInputFile(f string) OptionFn { return func(o *Option) { o.InputFile = f } }
@@ -140,6 +146,10 @@ func (x *Xlsx) Write(beans interface{}) error {
 	isSlice := beanReflectValue.Kind() == reflect.Slice
 
 	if isSlice {
+		if beanReflectValue.Len() == 0 {
+			return nil
+		}
+
 		beanType = beanReflectValue.Type().Elem()
 	}
 
@@ -151,6 +161,13 @@ func (x *Xlsx) Write(beans interface{}) error {
 	x.currentSheet = x.createSheet(ttag, false)
 
 	fields := collectExportableFields(beanType)
+
+	if x.option.Placeholder {
+		x.processPlaceholders(beanReflectValue, isSlice, fields)
+
+		return nil
+	}
+
 	titles, customizedTitle := collectTitles(fields)
 	location := x.locateTitleRow(fields, titles, false)
 	customizedTitle = customizedTitle && !location.isValid()
@@ -184,6 +201,112 @@ func (x *Xlsx) Write(beans interface{}) error {
 	}
 
 	return x.createDataValidations(fields, x.currentSheet)
+}
+
+func (x *Xlsx) processPlaceholders(beanReflectValue reflect.Value, isSlice bool, fields []reflect.StructField) {
+	placeholders := collectPlaceholders(x.currentSheet)
+	v := beanReflectValue
+
+	if isSlice {
+		v = beanReflectValue.Index(0)
+	}
+
+	x.writePlaceholderTemplate(fields, placeholders, v)
+}
+
+func (x *Xlsx) writePlaceholderTemplate(fields []reflect.StructField,
+	plMap map[string]PlaceholderValue, v reflect.Value) {
+	vars := make(map[string]string)
+	placeholderCells := make(map[string]string)
+
+	for _, f := range fields {
+		name := f.Tag.Get("placeholder")
+		if name == "" {
+			name = f.Name
+		}
+
+		vars[name] = getFieldValue(f, v)
+
+		if v := f.Tag.Get("placeholderCell"); v != "" {
+			placeholderCells[v] = vars[name]
+		}
+	}
+
+	for k, v := range plMap {
+		x.currentSheet.Cell(k).SetString(v.Interpolate(vars))
+	}
+
+	for k, v := range placeholderCells {
+		x.currentSheet.Cell(k).SetString(v)
+	}
+}
+
+func collectPlaceholders(sheet spreadsheet.Sheet) map[string]PlaceholderValue {
+	placeholders := make(map[string]PlaceholderValue)
+
+	for _, row := range sheet.Rows() {
+		for _, cell := range row.Cells() {
+			if pl := ParsePlaceholder(cell.GetString()); pl.HasPlaceholders() {
+				placeholders[cell.Reference()] = pl
+			}
+		}
+	}
+
+	return placeholders
+}
+
+// PlaceholderValue represents a placeholder value.
+type PlaceholderValue struct {
+	PlaceholderVars   []string
+	PlaceholderQuotes []string
+	Content           string
+}
+
+// HasPlaceholders tells that the PlaceholderValue has any placeholders.
+func (p *PlaceholderValue) HasPlaceholders() bool { return len(p.PlaceholderVars) > 0 }
+
+// Interpolate interpolates placeholders with vars.
+func (p *PlaceholderValue) Interpolate(vars map[string]string) string {
+	content := p.Content
+
+	for i := 0; i < len(p.PlaceholderVars); i++ {
+		v := vars[p.PlaceholderVars[i]]
+		content = strings.ReplaceAll(content, p.PlaceholderQuotes[i], v)
+	}
+
+	return content
+}
+
+// ParsePlaceholder parses placeholders in the content.
+func ParsePlaceholder(content string) PlaceholderValue {
+	placeholders := make([]string, 0)
+	placeholderQuotes := make([]string, 0)
+
+	pos := 0
+
+	for {
+		lp := strings.Index(content[pos:], "{{")
+		if lp < 0 {
+			break
+		}
+
+		rp := strings.Index(content[pos+lp:], "}}")
+		if rp < 0 {
+			break
+		}
+
+		pl := content[pos+lp : pos+lp+rp+2]
+		placeholderQuotes = append(placeholderQuotes, pl)
+		placeholders = append(placeholders, strings.TrimSpace(pl[2:len(pl)-2]))
+
+		pos += lp + rp
+	}
+
+	return PlaceholderValue{
+		PlaceholderVars:   placeholders,
+		PlaceholderQuotes: placeholderQuotes,
+		Content:           content,
+	}
 }
 
 func (x *Xlsx) createDataValidations(fields []reflect.StructField, sheet spreadsheet.Sheet) error {
@@ -417,6 +540,31 @@ func (x *Xlsx) writeRow(fields []reflect.StructField, value reflect.Value) {
 
 	for _, field := range fields {
 		setCellValue(row.AddCell(), field, value)
+	}
+}
+
+func getFieldValue(field reflect.StructField, value reflect.Value) string {
+	v := value.FieldByIndex(field.Index).Interface()
+
+	if fv, ok := ConvertNumberToFloat64(v); ok {
+		return fmt.Sprintf("%v", fv)
+	}
+
+	switch fv := v.(type) {
+	case time.Time:
+		if format := field.Tag.Get("format"); format != "" {
+			return fv.Format(ParseJavaTimeFormat(format))
+		}
+
+		return fv.Format("2006-01-02 15:04:05")
+	case string:
+		return fv
+	case bool:
+		return fmt.Sprintf("%v", fv)
+	case nil:
+		return ""
+	default:
+		return ""
 	}
 }
 

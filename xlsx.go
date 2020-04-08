@@ -22,10 +22,10 @@ type T interface{ t() }
 
 // Xlsx is the structure for xlsx processing.
 type Xlsx struct {
-	workbook     *spreadsheet.Workbook
-	currentSheet spreadsheet.Sheet
-	option       *Option
-	rowsWritten  int
+	tmplWorkbook, workbook  *spreadsheet.Workbook
+	tmplSheet, currentSheet spreadsheet.Sheet
+	option                  *Option
+	rowsWritten             int
 }
 
 func (x *Xlsx) hasInput() bool { return x.option.TemplateFile != "" || x.option.InputFile != "" }
@@ -42,6 +42,11 @@ func New(optionFns ...OptionFn) (x *Xlsx, err error) {
 		return nil, err
 	}
 
+	if x.workbook == nil && x.tmplWorkbook != nil {
+		x.workbook = x.tmplWorkbook
+		x.tmplWorkbook = nil
+	}
+
 	if x.workbook == nil {
 		x.workbook = spreadsheet.New()
 	}
@@ -51,7 +56,7 @@ func New(optionFns ...OptionFn) (x *Xlsx, err error) {
 
 func (x *Xlsx) readFile() (err error) {
 	if t := x.option.TemplateFile; t != "" {
-		if x.workbook, err = spreadsheet.Open(t); err != nil {
+		if x.tmplWorkbook, err = spreadsheet.Open(t); err != nil {
 			logrus.Warnf("failed to open template file %s: %v", t, err)
 			return err
 		}
@@ -158,7 +163,7 @@ func (x *Xlsx) Write(beans interface{}) error {
 	}
 
 	ttag := findTTag(beanType)
-	x.currentSheet = x.createSheet(ttag, false)
+	x.currentSheet = x.createSheet(x.workbook, ttag, false)
 
 	fields := collectExportableFields(beanType)
 
@@ -260,6 +265,8 @@ type PlaceholderValue struct {
 	PlaceholderVars   []string
 	PlaceholderQuotes []string
 	Content           string
+
+	Parts []PlaceholderPart
 }
 
 // HasPlaceholders tells that the PlaceholderValue has any placeholders.
@@ -277,35 +284,102 @@ func (p *PlaceholderValue) Interpolate(vars map[string]string) string {
 	return content
 }
 
+// ParseVars parses the vars from the content.
+func (p *PlaceholderValue) ParseVars(content string) (outVars map[string]string, matched bool) {
+	outVars = make(map[string]string)
+
+	for i := 0; i < len(p.Parts); i++ {
+		v := p.Parts[i]
+
+		if v.Var == "" {
+			if !strings.HasPrefix(content, v.Part) {
+				return nil, false
+			}
+
+			content = content[len(v.Part):]
+		} else {
+			if i+1 >= len(p.Parts) {
+				outVars[v.Var] = content
+			} else {
+				i++
+				v2 := p.Parts[i]
+				v2Pos := strings.Index(content, v2.Part)
+				if v2Pos < 0 {
+					return nil, false
+				}
+
+				outVars[v.Var] = content[:v2Pos]
+				content = content[v2Pos+len(v2.Part):]
+			}
+		}
+	}
+
+	return outVars, true
+}
+
+// PlaceholderPart is a placeholder sub Part after parsing.
+type PlaceholderPart struct {
+	Part string
+	Var  string
+}
+
 // ParsePlaceholder parses placeholders in the content.
 func ParsePlaceholder(content string) PlaceholderValue {
 	placeholders := make([]string, 0)
 	placeholderQuotes := make([]string, 0)
+	parts := make([]PlaceholderPart, 0)
 
 	pos := 0
 
 	for {
-		lp := strings.Index(content[pos:], "{{")
+		contentPos := content[pos:]
+		lp := strings.Index(contentPos, "{{")
+
 		if lp < 0 {
+			if len(contentPos) > 0 {
+				parts = append(parts, PlaceholderPart{
+					Part: contentPos,
+				})
+			}
+
 			break
 		}
 
 		rp := strings.Index(content[pos+lp:], "}}")
 		if rp < 0 {
+			if len(contentPos) > 0 {
+				parts = append(parts, PlaceholderPart{
+					Part: contentPos,
+				})
+			}
+
 			break
+		}
+
+		if lp > 0 {
+			parts = append(parts, PlaceholderPart{
+				Part: contentPos[:lp],
+			})
 		}
 
 		pl := content[pos+lp : pos+lp+rp+2]
 		placeholderQuotes = append(placeholderQuotes, pl)
-		placeholders = append(placeholders, strings.TrimSpace(pl[2:len(pl)-2]))
+		varName := strings.TrimSpace(pl[2 : len(pl)-2])
+		placeholders = append(placeholders, varName)
 
-		pos += lp + rp
+		parts = append(parts, PlaceholderPart{
+			Part: pl,
+			Var:  varName,
+		})
+
+		pos += lp + rp + 2 // nolint gomnd
 	}
 
 	return PlaceholderValue{
 		PlaceholderVars:   placeholders,
 		PlaceholderQuotes: placeholderQuotes,
 		Content:           content,
+		Parts:             parts,
 	}
 }
 
@@ -352,7 +426,7 @@ func (x *Xlsx) createColumnDataValidation(startRowNum int, sheet spreadsheet.She
 	if strings.Contains(tag, "!") {
 		dvs := strings.Split(tag, "!")
 		dvSheetName, validateRange := dvs[0], dvs[1]
-		vsheet := x.findSheet(dvSheetName)
+		vsheet := x.findSheet(x.workbook, dvSheetName)
 
 		if !vsheet.IsValid() {
 			return fmt.Errorf("unable to find sheet with name %s", dvSheetName)
@@ -372,16 +446,32 @@ func (x *Xlsx) createColumnDataValidation(startRowNum int, sheet spreadsheet.She
 
 func (x *Xlsx) Read(slicePtr interface{}) error {
 	v := reflect.ValueOf(slicePtr)
-	if v.Kind() != reflect.Ptr || v.Elem().Kind() != reflect.Slice {
+	if v.Kind() != reflect.Ptr || v.Elem().Kind() != reflect.Slice && v.Elem().Kind() != reflect.Struct {
 		return errors.New("the input argument should be a pointer of slice")
 	}
 
-	beanType := v.Elem().Type().Elem()
+	beanType := v.Elem().Type()
+
+	if v.Elem().Kind() == reflect.Slice {
+		beanType = v.Elem().Type().Elem()
+	}
 
 	ttag := findTTag(beanType)
-	x.currentSheet = x.createSheet(ttag, true)
+
+	x.tmplSheet = x.createSheet(x.tmplWorkbook, ttag, true)
+	x.currentSheet = x.createSheet(x.workbook, ttag, true)
 
 	fields := collectExportableFields(beanType)
+
+	if x.option.Placeholder {
+		err := x.writePlaceholderToBean(v, fields)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
 	titles, _ := collectTitles(fields)
 	location := x.locateTitleRow(fields, titles, true)
 
@@ -392,6 +482,35 @@ func (x *Xlsx) Read(slicePtr interface{}) error {
 		}
 
 		v.Elem().Set(slice)
+	}
+
+	return nil
+}
+
+func (x *Xlsx) writePlaceholderToBean(v reflect.Value, fields []reflect.StructField) error {
+	vars := x.readPlaceholderValues()
+	vv := v.Elem()
+
+	for _, f := range fields {
+		if v := f.Tag.Get("placeholderCell"); v != "" {
+			vs := x.currentSheet.Cell(v).GetString()
+			if err := setFieldValue(vv, f, vs); err != nil {
+				return err
+			}
+
+			continue
+		}
+
+		name := f.Tag.Get("placeholder")
+		if name == "" {
+			name = f.Name
+		}
+
+		if varValue, ok := vars[name]; ok {
+			if err := setFieldValue(vv, f, varValue); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -417,35 +536,38 @@ func (x *Xlsx) createRowBean(beanType reflect.Type, l templateLocation, row spre
 
 	for _, cell := range l.templateCells {
 		c := row.Cell(cell.cellColumn)
-		if c.IsEmpty() {
-			continue
-		}
 
-		sf := cell.structField
-		f := rowBean.FieldByIndex(sf.Index)
-		s := c.GetString()
-
-		if sf.Type == timeType {
-			t, err := parseTime(sf, s)
-			if err != nil {
-				return reflect.Value{}, err
-			}
-
-			f.Set(reflect.ValueOf(t))
-
-			continue
-		}
-
-		v, err := gor.CastAny(s, sf.Type)
-
-		if err != nil && sf.Tag.Get("omiterr") != "true" {
+		if err := setFieldValue(rowBean, cell.structField, c.GetString()); err != nil {
 			return reflect.Value{}, err
 		}
-
-		f.Set(v)
 	}
 
 	return rowBean, nil
+}
+
+func setFieldValue(rowBean reflect.Value, sf reflect.StructField, s string) error {
+	f := rowBean.FieldByIndex(sf.Index)
+
+	if sf.Type == timeType {
+		t, err := parseTime(sf, s)
+		if err != nil {
+			return err
+		}
+
+		f.Set(reflect.ValueOf(t))
+
+		return nil
+	}
+
+	v, err := gor.CastAny(s, sf.Type)
+
+	if err != nil && sf.Tag.Get("omiterr") != "true" {
+		return err
+	}
+
+	f.Set(v)
+
+	return nil
 }
 
 func parseTime(sf reflect.StructField, s string) (time.Time, error) {
@@ -456,17 +578,22 @@ func parseTime(sf reflect.StructField, s string) (time.Time, error) {
 	return dateparse.ParseLocal(s)
 }
 
-func (x *Xlsx) createSheet(ttag reflect.StructTag, readonly bool) spreadsheet.Sheet {
-	sheetName := ttag.Get("sheet")
+func (x *Xlsx) createSheet(wb *spreadsheet.Workbook, ttag reflect.StructTag, readonly bool) spreadsheet.Sheet {
 	wbSheet := spreadsheet.Sheet{}
 
+	if wb == nil {
+		return wbSheet
+	}
+
+	sheetName := ttag.Get("sheet")
+
 	if x.hasInput() {
-		if sh := x.findSheet(sheetName); sh.IsValid() {
+		if sh := x.findSheet(wb, sheetName); sh.IsValid() {
 			return sh
 		}
 
-		if len(x.workbook.Sheets()) > 0 {
-			wbSheet = x.workbook.Sheets()[0]
+		if len(wb.Sheets()) > 0 {
+			wbSheet = wb.Sheets()[0]
 		}
 	}
 
@@ -475,7 +602,7 @@ func (x *Xlsx) createSheet(ttag reflect.StructTag, readonly bool) spreadsheet.Sh
 	}
 
 	if !wbSheet.IsValid() {
-		wbSheet = x.workbook.AddSheet()
+		wbSheet = wb.AddSheet()
 	}
 
 	if sheetName != "" && !strings.Contains(wbSheet.Name(), sheetName) {
@@ -552,11 +679,15 @@ func getFieldValue(field reflect.StructField, value reflect.Value) string {
 
 	switch fv := v.(type) {
 	case time.Time:
-		if format := field.Tag.Get("format"); format != "" {
-			return fv.Format(ParseJavaTimeFormat(format))
+		format := field.Tag.Get("format")
+
+		if format != "" {
+			format = ParseJavaTimeFormat(format)
+		} else {
+			format = "2006-01-02 15:04:05"
 		}
 
-		return fv.Format("2006-01-02 15:04:05")
+		return fv.Format(format)
 	case string:
 		return fv
 	case bool:
@@ -739,14 +870,33 @@ func (x *Xlsx) removeTempleRows(l templateLocation) {
 	}
 }
 
-func (x *Xlsx) findSheet(sheetName string) spreadsheet.Sheet {
-	for _, sheet := range x.workbook.Sheets() {
+func (x *Xlsx) findSheet(wb *spreadsheet.Workbook, sheetName string) spreadsheet.Sheet {
+	for _, sheet := range wb.Sheets() {
 		if strings.Contains(sheet.Name(), sheetName) {
 			return sheet
 		}
 	}
 
 	return spreadsheet.Sheet{}
+}
+
+func (x *Xlsx) readPlaceholderValues() map[string]string {
+	plMap := collectPlaceholders(x.tmplSheet)
+	plVars := make(map[string]string)
+
+	for k, v := range plMap {
+		cellValue := x.currentSheet.Cell(k).GetString()
+
+		if vars, ok := v.ParseVars(cellValue); ok {
+			for vk, vv := range vars {
+				plVars[vk] = vv
+			}
+		} else {
+			logrus.Warnf("failed to parse vars from cell value %s by Part %+v", cellValue, v.Content)
+		}
+	}
+
+	return plVars
 }
 
 // nolint gochecknoglobals

@@ -174,31 +174,62 @@ func TestParsePlaceholder(t *testing.T) {
 		PlaceholderVars:   []string{},
 		PlaceholderQuotes: []string{},
 		Content:           "Age",
+		Parts:             []xlsx.PlaceholderPart{{Part: "Age"}},
 	}, xlsx.ParsePlaceholder("Age"))
 
 	assert.Equal(t, xlsx.PlaceholderValue{
 		PlaceholderVars:   []string{"name"},
 		PlaceholderQuotes: []string{"{{name}}"},
 		Content:           "{{name}}",
+		Parts:             []xlsx.PlaceholderPart{{Part: "{{name}}", Var: "name"}},
 	}, xlsx.ParsePlaceholder("{{name}}"))
 
 	assert.Equal(t, xlsx.PlaceholderValue{
 		PlaceholderVars:   []string{"name", "age"},
 		PlaceholderQuotes: []string{"{{name}}", "{{ age }}"},
 		Content:           "{{name}} {{ age }}",
+		Parts: []xlsx.PlaceholderPart{
+			{Part: "{{name}}", Var: "name"},
+			{Part: " ", Var: ""},
+			{Part: "{{ age }}", Var: "age"},
+		},
 	}, xlsx.ParsePlaceholder("{{name}} {{ age }}"))
 
 	assert.Equal(t, xlsx.PlaceholderValue{
 		PlaceholderVars:   []string{"name", "age"},
 		PlaceholderQuotes: []string{"{{name}}", "{{ age }}"},
 		Content:           "Hello {{name}} world {{ age }}",
+		Parts: []xlsx.PlaceholderPart{
+			{Part: "Hello ", Var: ""},
+			{Part: "{{name}}", Var: "name"},
+			{Part: " world ", Var: ""},
+			{Part: "{{ age }}", Var: "age"},
+		},
 	}, xlsx.ParsePlaceholder("Hello {{name}} world {{ age }}"))
 
 	assert.Equal(t, xlsx.PlaceholderValue{
 		PlaceholderVars:   []string{},
 		PlaceholderQuotes: []string{},
 		Content:           "Age{{",
+		Parts: []xlsx.PlaceholderPart{
+			{Part: "Age{{", Var: ""},
+		},
 	}, xlsx.ParsePlaceholder("Age{{"))
+
+	plName := xlsx.ParsePlaceholder("{{name}}")
+	vars, ok := plName.ParseVars("bingoohuang")
+	assert.True(t, ok)
+	assert.Equal(t, map[string]string{"name": "bingoohuang"}, vars)
+
+	nameArgs := xlsx.ParsePlaceholder("{{name}} {{ age }}")
+	vars, ok = nameArgs.ParseVars("bingoohuang 100")
+	assert.True(t, ok)
+	assert.Equal(t, map[string]string{"name": "bingoohuang", "age": "100"}, vars)
+
+	nameArgs = xlsx.ParsePlaceholder("中国{{v1}}人民{{v2}}")
+	vars, ok = nameArgs.ParseVars("中国中央人民政府")
+	assert.True(t, ok)
+	assert.Equal(t, map[string]string{"v1": "中央", "v2": "政府"}, vars)
 }
 
 type RegisterTable struct {
@@ -206,7 +237,7 @@ type RegisterTable struct {
 	Mobile       string    // 手机
 	Landline     string    // 座机
 	RegisterDate time.Time // 登记日期
-	DeviceType   string    `placeholderCell:"C9"` // 类型
+	DeviceType   string    `placeholderCell:"C8"` // 类型
 	Manufacturer string    // 生产厂家
 	DeviceModern string    // 型号
 }
@@ -215,17 +246,31 @@ func TestPlaceholder(t *testing.T) {
 	x, _ := xlsx.New(xlsx.WithTemplatePlaceholder("testdata/placeholder.xlsx"))
 	defer x.Close()
 
-	err := x.Write(RegisterTable{
+	now, _ := time.ParseInLocation("2006-01-02 15:04:05", "2020-04-08 20:53:11", time.Local)
+
+	src := RegisterTable{
 		ContactName:  "隔壁老王",
 		Mobile:       "1234567890",
 		Landline:     "010-1234567890",
-		RegisterDate: time.Now(),
+		RegisterDate: now,
 		DeviceType:   "A1",
 		Manufacturer: "来弄你",
 		DeviceModern: "X786",
-	})
+	}
+	err := x.Write(src)
 
 	assert.Nil(t, err)
 
 	_ = x.SaveToFile("testdata/out_placeholder.xlsx")
+
+	x2, _ := xlsx.New(xlsx.WithTemplatePlaceholder("testdata/placeholder.xlsx"),
+		xlsx.WithInputFile("testdata/out_placeholder.xlsx"))
+	defer x2.Close()
+
+	var v RegisterTable
+
+	err = x2.Read(&v)
+
+	assert.Nil(t, err)
+	assert.Equal(t, src, v)
 }

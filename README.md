@@ -133,6 +133,8 @@ func demo() {
 
 ### 占位模板
 
+#### 站位模板写入
+
 ![image](https://user-images.githubusercontent.com/1940588/78628536-f9eae500-78c6-11ea-90f0-29b5bb3a4610.png)
 
 ```go
@@ -141,7 +143,7 @@ type RegisterTable struct {
 	Mobile       string    // 手机
 	Landline     string    // 座机
 	RegisterDate time.Time // 登记日期
-	DeviceType   string    `placeholderCell:"C9"` // 类型
+	DeviceType   string    `placeholderCell:"C8"` // 类型
 	Manufacturer string    // 生产厂家
 	DeviceModern string    // 型号
 }
@@ -167,3 +169,42 @@ func demo() {
 ```
 
 ![image](https://user-images.githubusercontent.com/1940588/78628579-17b84a00-78c7-11ea-84bc-1a7e192ee06c.png)
+
+#### 占位模板读取
+
+占位符模板读取，需要两个文件：
+
+1. “占位符模板”excel文件
+2. “待读取数据”excel文件
+
+然后从“占位符模板”里获取占位符的位置，用这个位置信息，去实际“待读取数据”的excel文件中提取数据。
+
+```go
+type RegisterTable struct {
+	ContactName  string    // 联系人
+	Mobile       string    // 手机
+	Landline     string    // 座机
+	RegisterDate time.Time // 登记日期
+	DeviceType   string    `placeholderCell:"C8"` // 类型，直接从C8单元格读取
+	Manufacturer string    // 生产厂家
+	DeviceModern string    // 型号
+}
+
+func demo() error {
+	x, err := xlsx.New(
+        xlsx.WithTemplatePlaceholder("testdata/placeholder.xlsx"), // 1. “占位符模板”excel文件
+		xlsx.WithInputFile("testdata/out_placeholder.xlsx"))       // 2. “待读取数据”excel文件
+    if err != nil {
+        return err
+    }
+
+	defer x2.Close()
+
+	var v RegisterTable
+
+	err = x2.Read(&v)
+	if err != nil {
+        return err
+    }
+}
+```

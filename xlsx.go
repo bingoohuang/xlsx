@@ -64,6 +64,10 @@ func (x *Xlsx) readFile() (err error) {
 
 // Close does some cleanup like remove temporary files.
 func (x *Xlsx) Close() error {
+	if x.tmplWorkbook != nil {
+		_ = x.tmplWorkbook.Close()
+	}
+
 	return x.workbook.Close()
 }
 
@@ -183,135 +187,14 @@ func collectPlaceholders(sheet spreadsheet.Sheet) map[string]PlaceholderValue {
 	return placeholders
 }
 
-// PlaceholderValue represents a placeholder value.
-type PlaceholderValue struct {
-	PlaceholderVars   []string
-	PlaceholderQuotes []string
-	Content           string
-
-	Parts []PlaceholderPart
-}
-
-// HasPlaceholders tells that the PlaceholderValue has any placeholders.
-func (p *PlaceholderValue) HasPlaceholders() bool { return len(p.PlaceholderVars) > 0 }
-
-// Interpolate interpolates placeholders with vars.
-func (p *PlaceholderValue) Interpolate(vars map[string]string) string {
-	content := p.Content
-
-	for i := 0; i < len(p.PlaceholderVars); i++ {
-		v := vars[p.PlaceholderVars[i]]
-		content = strings.ReplaceAll(content, p.PlaceholderQuotes[i], v)
-	}
-
-	return content
-}
-
-// ParseVars parses the vars from the content.
-func (p *PlaceholderValue) ParseVars(content string) (outVars map[string]string, matched bool) {
-	outVars = make(map[string]string)
-
-	for i := 0; i < len(p.Parts); i++ {
-		v := p.Parts[i]
-
-		if v.Var == "" {
-			if !strings.HasPrefix(content, v.Part) {
-				return nil, false
-			}
-
-			content = content[len(v.Part):]
-		} else {
-			if i+1 >= len(p.Parts) {
-				outVars[v.Var] = content
-			} else {
-				i++
-				v2 := p.Parts[i]
-				v2Pos := strings.Index(content, v2.Part)
-				if v2Pos < 0 {
-					return nil, false
-				}
-
-				outVars[v.Var] = content[:v2Pos]
-				content = content[v2Pos+len(v2.Part):]
-			}
-		}
-	}
-
-	return outVars, true
-}
-
-// PlaceholderPart is a placeholder sub Part after parsing.
-type PlaceholderPart struct {
-	Part string
-	Var  string
-}
-
-// ParsePlaceholder parses placeholders in the content.
-func ParsePlaceholder(content string) PlaceholderValue {
-	placeholders := make([]string, 0)
-	placeholderQuotes := make([]string, 0)
-	parts := make([]PlaceholderPart, 0)
-
-	pos := 0
-
-	for {
-		contentPos := content[pos:]
-		lp := strings.Index(contentPos, "{{")
-
-		if lp < 0 {
-			if len(contentPos) > 0 {
-				parts = append(parts, PlaceholderPart{
-					Part: contentPos,
-				})
-			}
-
-			break
-		}
-
-		rp := strings.Index(content[pos+lp:], "}}")
-		if rp < 0 {
-			if len(contentPos) > 0 {
-				parts = append(parts, PlaceholderPart{
-					Part: contentPos,
-				})
-			}
-
-			break
-		}
-
-		if lp > 0 {
-			parts = append(parts, PlaceholderPart{
-				Part: contentPos[:lp],
-			})
-		}
-
-		pl := content[pos+lp : pos+lp+rp+2]
-		placeholderQuotes = append(placeholderQuotes, pl)
-		varName := strings.TrimSpace(pl[2 : len(pl)-2])
-		placeholders = append(placeholders, varName)
-
-		parts = append(parts, PlaceholderPart{
-			Part: pl,
-			Var:  varName,
-		})
-
-		pos += lp + rp + 2 // nolint gomnd
-	}
-
-	return PlaceholderValue{
-		PlaceholderVars:   placeholders,
-		PlaceholderQuotes: placeholderQuotes,
-		Content:           content,
-		Parts:             parts,
-	}
-}
-
+// nolint gomnd
 func (x *Xlsx) createDataValidations(fields []reflect.StructField, sheet spreadsheet.Sheet) error {
+	row0Cells := sheet.Rows()[0].Cells()
+
 	for i, field := range fields {
-		cellColumn, _ := sheet.Rows()[0].Cells()[i].Column()
+		cellColumn, _ := row0Cells[i].Column()
 
 		dv := field.Tag.Get("dataValidation")
-		// nolint gomnd
 		if err := x.createColumnDataValidation(2, sheet, dv, cellColumn); err != nil {
 			return err
 		}
@@ -322,11 +205,9 @@ func (x *Xlsx) createDataValidations(fields []reflect.StructField, sheet spreads
 
 func (x *Xlsx) createTemplateDataValidations(l templateLocation, sheet spreadsheet.Sheet) error {
 	for _, tc := range l.templateCells {
-		cellColumn := tc.cellColumn
-
 		dv := tc.structField.Tag.Get("dataValidation")
 		// nolint gomnd
-		if err := x.createColumnDataValidation(l.titledRowNumber+1, sheet, dv, cellColumn); err != nil {
+		if err := x.createColumnDataValidation(l.titledRowNumber+1, sheet, dv, tc.cellColumn); err != nil {
 			return err
 		}
 	}
@@ -735,15 +616,15 @@ func (x *Xlsx) findTemplateRows(titledRowNumber int,
 
 	col := templateCells[0].cellColumn
 
-	for i := 0; i < len(rows); i++ {
-		if rows[i].RowNumber() <= uint32(titledRowNumber) {
+	for _, row := range rows {
+		if row.RowNumber() <= uint32(titledRowNumber) {
 			continue
 		}
 
-		if forRead || strings.Contains(rows[i].Cell(col).GetString(), "template") {
-			templateRows = append(templateRows, rows[i])
+		if forRead || strings.Contains(row.Cell(col).GetString(), "template") {
+			templateRows = append(templateRows, row)
 		} else if len(templateRows) == 0 {
-			return append(templateRows, rows[i])
+			return append(templateRows, row)
 		}
 	}
 
@@ -771,8 +652,7 @@ func (x *Xlsx) copyRowStyle(l templateLocation, row spreadsheet.Row) {
 	templateRow := l.templateRows[(x.rowsWritten-1)%len(l.templateRows)]
 
 	for _, tc := range l.templateCells { // copying cell style
-		cell := templateRow.Cell(tc.cellColumn)
-		if cx := cell.X(); cx.SAttr != nil {
+		if cx := templateRow.Cell(tc.cellColumn).X(); cx.SAttr != nil {
 			if style := x.workbook.StyleSheet.GetCellStyle(*cx.SAttr); !style.IsEmpty() {
 				row.Cell(tc.cellColumn).SetStyle(style)
 			}
@@ -830,47 +710,24 @@ var (
 
 // ParseJavaTimeFormat converts the time format in java to golang.
 func ParseJavaTimeFormat(layout string) string {
-	lo := layout
-	lo = strings.Replace(lo, "yyyy", "2006", -1)
-	lo = strings.Replace(lo, "yy", "06", -1)
-	lo = strings.Replace(lo, "MM", "01", -1)
-	lo = strings.Replace(lo, "dd", "02", -1)
-	lo = strings.Replace(lo, "HH", "15", -1)
-	lo = strings.Replace(lo, "mm", "04", -1)
-	lo = strings.Replace(lo, "ss", "05", -1)
-	lo = strings.Replace(lo, "SSS", "000", -1)
+	l := layout
+	l = strings.Replace(l, "yyyy", "2006", -1)
+	l = strings.Replace(l, "yy", "06", -1)
+	l = strings.Replace(l, "MM", "01", -1)
+	l = strings.Replace(l, "dd", "02", -1)
+	l = strings.Replace(l, "HH", "15", -1)
+	l = strings.Replace(l, "mm", "04", -1)
+	l = strings.Replace(l, "ss", "05", -1)
 
-	return lo
+	return strings.Replace(l, "SSS", "000", -1)
 }
 
 // ConvertNumberToFloat64 converts a number value to float64.
 // If the value is not a number, it returns 0, false.
 func ConvertNumberToFloat64(v interface{}) (float64, bool) {
-	switch fv := v.(type) {
-	case int:
-		return float64(fv), true
-	case int8:
-		return float64(fv), true
-	case int16:
-		return float64(fv), true
-	case int32:
-		return float64(fv), true
-	case int64:
-		return float64(fv), true
-	case uint:
-		return float64(fv), true
-	case uint8:
-		return float64(fv), true
-	case uint16:
-		return float64(fv), true
-	case uint32:
-		return float64(fv), true
-	case uint64:
-		return float64(fv), true
-	case float32:
-		return float64(fv), true
-	case float64:
-		return fv, true
+	switch v.(type) {
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+		return reflect.ValueOf(v).Convert(reflect.TypeOf(float64(0))).Interface().(float64), true
 	}
 
 	return 0, false

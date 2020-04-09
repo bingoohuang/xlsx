@@ -23,7 +23,7 @@ func init() {
 }
 
 func main() {
-	x, _ := xlsx.New(xlsx.WithTemplatePlaceholder("testdata/placeholder.xlsx"))
+	x, _ := xlsx.New(xlsx.WithTemplateFile("testdata/placeholder.xlsx"), xlsx.AsPlaceholder())
 	defer x.Close()
 
 	_ = x.Write(RegisterTable{

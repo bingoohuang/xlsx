@@ -1,11 +1,9 @@
 package xlsx
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"reflect"
 	"strings"
 	"time"
@@ -28,17 +26,16 @@ type Xlsx struct {
 	rowsWritten             int
 }
 
-func (x *Xlsx) hasInput() bool { return x.option.TemplateFile != "" || x.option.InputFile != "" }
+func (x *Xlsx) hasInput() bool { return x.option.TemplateWorkbook != nil || x.option.Workbook != nil }
 
 // New creates a new instance of Xlsx.
 func New(optionFns ...OptionFn) (x *Xlsx, err error) {
 	x = &Xlsx{option: createOption(optionFns)}
 
-	if err := x.readFile(); err != nil {
-		return nil, err
-	}
+	x.tmplWorkbook = x.option.TemplateWorkbook
+	x.workbook = x.option.Workbook
 
-	if err := x.readerExcel(); err != nil {
+	if err := x.readFile(); err != nil {
 		return nil, err
 	}
 
@@ -55,20 +52,6 @@ func New(optionFns ...OptionFn) (x *Xlsx, err error) {
 }
 
 func (x *Xlsx) readFile() (err error) {
-	if t := x.option.TemplateFile; t != "" {
-		if x.tmplWorkbook, err = spreadsheet.Open(t); err != nil {
-			logrus.Warnf("failed to open template file %s: %v", t, err)
-			return err
-		}
-	}
-
-	if t := x.option.InputFile; t != "" {
-		if x.workbook, err = spreadsheet.Open(t); err != nil {
-			logrus.Warnf("failed to open input file %s: %v", t, err)
-			return err
-		}
-	}
-
 	if t := x.option.httpUpload; t != nil {
 		if x.workbook, err = t.parseUploadFile(); err != nil {
 			logrus.Warnf("failed to parseUploadFile for the file key %s: %v", t.filenameKey, err)
@@ -78,66 +61,6 @@ func (x *Xlsx) readFile() (err error) {
 
 	return nil
 }
-
-func (x *Xlsx) readerExcel() error {
-	t := x.option.Reader
-	if t == nil {
-		return nil
-	}
-
-	readerBytes, err := ioutil.ReadAll(t)
-	if err != nil {
-		return err
-	}
-
-	r := bytes.NewReader(readerBytes)
-	if x.workbook, err = spreadsheet.Read(r, int64(len(readerBytes))); err != nil {
-		logrus.Warnf("failed to read input file from the reader: %v", err)
-		return err
-	}
-
-	return nil
-}
-
-func createOption(optionFns []OptionFn) *Option {
-	option := &Option{}
-
-	for _, fn := range optionFns {
-		fn(option)
-	}
-
-	return option
-}
-
-// Option defines the option for the xlsx processing.
-type Option struct {
-	TemplateFile string
-	InputFile    string
-	httpUpload   *upload
-	Validations  map[string][]string
-	Reader       io.Reader
-	Placeholder  bool
-}
-
-// OptionFn defines the func to change the option.
-type OptionFn func(*Option)
-
-// WithTemplate defines the template excel file for writing template.
-func WithTemplate(f string) OptionFn { return func(o *Option) { o.TemplateFile = f } }
-
-// WithTemplatePlaceholder defines the template excel file for writing template in placeholder mode.
-func WithTemplatePlaceholder(f string) OptionFn {
-	return func(o *Option) { o.TemplateFile = f; o.Placeholder = true }
-}
-
-// WithInputFile defines the input excel file for reading.
-func WithInputFile(f string) OptionFn { return func(o *Option) { o.InputFile = f } }
-
-// WithValidations defines the validations for the cells.
-func WithValidations(v map[string][]string) OptionFn { return func(o *Option) { o.Validations = v } }
-
-// WithReader defines the io reader for the writing template or reading excel.
-func WithReader(v io.Reader) OptionFn { return func(o *Option) { o.Reader = v } }
 
 // Close does some cleanup like remove temporary files.
 func (x *Xlsx) Close() error {

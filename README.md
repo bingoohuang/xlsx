@@ -44,7 +44,7 @@ you will get the result excel file in [testdata/demo1.xlsx](testdata/demo1.xlsx)
 ### Write excel with template file
 
 ```go
-x, _ := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
+x, _ := xlsx.New(xlsx.WithTemplateFile("testdata/template.xlsx"))
 defer x.Close()
 
 x.Write([]memberStat{
@@ -63,7 +63,7 @@ you will get the result excel file in [testdata/demo2.xlsx](testdata/demo2.xlsx)
 ```go
 var memberStats []memberStat
 
-x, _ := xlsx.New(xlsx.WithInputFile("testdata/test1.xlsx"))
+x, _ := xlsx.New(xlsx.WithFile("testdata/test1.xlsx"))
 defer x.Close()
 
 if err := x.Read(&memberStats); err != nil {
@@ -149,7 +149,7 @@ type RegisterTable struct {
 }
 
 func demo() {
-	x, _ := xlsx.New(xlsx.WithTemplatePlaceholder("testdata/placeholder.xlsx"))
+	x, _ := xlsx.New(xlsx.WithTemplateFile("testdata/placeholder.xlsx"),  xlsx.AsPlaceholder())
 	defer x.Close()
 
 	_ = x.Write(RegisterTable{
@@ -161,7 +161,6 @@ func demo() {
 		Manufacturer: "来弄你",
 		DeviceModern: "X786",
 	})
-
 
 	_ = x.SaveToFile("testdata/out_placeholder.xlsx")
 }
@@ -192,8 +191,9 @@ type RegisterTable struct {
 
 func demo() error {
 	x, err := xlsx.New(
-        xlsx.WithTemplatePlaceholder("testdata/placeholder.xlsx"), // 1. “占位符模板”excel文件
-		xlsx.WithInputFile("testdata/out_placeholder.xlsx"))       // 2. “待读取数据”excel文件
+        xlsx.WithTemplateFile("testdata/placeholder.xlsx"), // 1. “占位符模板”excel文件
+        xlsx.AsPlaceholder(),
+		xlsx.WithFile("testdata/out_placeholder.xlsx"))     // 2. “待读取数据”excel文件
     if err != nil {
         return err
     }

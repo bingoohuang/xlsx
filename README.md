@@ -1,5 +1,7 @@
 # xlsx
 
+![Go](https://github.com/bingoohuang/xlsx/workflows/Go/badge.svg)
+
 golang mapping between xlsx and struct instances.
 
 本库提供高层golang的struct切片和excel文件的映射，避免直接处理底层sheet/row/cells等细节。

@@ -1,6 +1,6 @@
 # xlsx
 
-![Go](https://github.com/bingoohuang/xlsx/workflows/Go/badge.svg)
+![CI](https://github.com/bingoohuang/xlsx/workflows/CI/badge.svg)
 
 golang mapping between xlsx and struct instances.
 

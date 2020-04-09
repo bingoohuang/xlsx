@@ -2,6 +2,7 @@ package xlsx
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 
@@ -31,37 +32,15 @@ type Option struct {
 // OptionFn defines the func to change the option.
 type OptionFn func(*Option)
 
-// WithTemplateFile defines the template excel file for writing template.
-func WithTemplateFile(f string) OptionFn {
-	wb, err := spreadsheet.Open(f)
+// WithTemplate defines the template excel file for writing template.
+func WithTemplate(f interface{}) OptionFn {
+	wb, err := parseExcel(f)
 	if err != nil {
-		logrus.Warnf("failed to open template file %s: %v", f, err)
+		logrus.Warnf("failed to open template excel %v", err)
 		return func(*Option) {}
 	}
 
 	return func(o *Option) { o.TemplateWorkbook = wb }
-}
-
-// WithTemplateBytes defines the template excel file for writing template.
-func WithTemplateBytes(f []byte) OptionFn {
-	wb, err := spreadsheet.Read(bytes.NewReader(f), int64(len(f)))
-	if err != nil {
-		logrus.Warnf("failed to open file %s: %v", f, err)
-		return func(*Option) {}
-	}
-
-	return func(o *Option) { o.TemplateWorkbook = wb }
-}
-
-// WithTemplateReader defines the template excel file for writing template.
-func WithTemplateReader(f io.Reader) OptionFn {
-	readerBytes, err := ioutil.ReadAll(f)
-	if err != nil {
-		logrus.Warnf("failed to ReadAll: %v", err)
-		return func(*Option) {}
-	}
-
-	return WithTemplateBytes(readerBytes)
 }
 
 // AsPlaceholder defines the template excel file for writing template in placeholder mode.
@@ -69,37 +48,35 @@ func AsPlaceholder() OptionFn {
 	return func(o *Option) { o.Placeholder = true }
 }
 
-// WithFile defines the input excel file for reading.
-func WithFile(f string) OptionFn {
-	wb, err := spreadsheet.Open(f)
+// WithExcel defines the input excel file for reading.
+func WithExcel(f interface{}) OptionFn {
+	wb, err := parseExcel(f)
 	if err != nil {
-		logrus.Warnf("failed to open file %s: %v", f, err)
+		logrus.Warnf("failed to open excel %v", err)
 		return func(*Option) {}
 	}
 
 	return func(o *Option) { o.Workbook = wb }
 }
 
-// WithBytes defines the input excel file bytes for reading.
-func WithBytes(f []byte) OptionFn {
-	wb, err := spreadsheet.Read(bytes.NewReader(f), int64(len(f)))
-	if err != nil {
-		logrus.Warnf("failed to open file %s: %v", f, err)
-		return func(*Option) {}
+func parseExcel(f interface{}) (wb *spreadsheet.Workbook, err error) {
+	var bs []byte
+
+	switch ft := f.(type) {
+	case string:
+		return spreadsheet.Open(ft)
+	case []byte:
+		return spreadsheet.Read(bytes.NewReader(ft), int64(len(ft)))
+	case io.Reader:
+		bs, err = ioutil.ReadAll(ft)
+		if err != nil {
+			return nil, err
+		}
+
+		return spreadsheet.Read(bytes.NewReader(bs), int64(len(bs)))
+	default:
+		return nil, fmt.Errorf("unknown excel file format")
 	}
-
-	return func(o *Option) { o.Workbook = wb }
-}
-
-// WithReader defines the input excel file reader for reading.
-func WithReader(f io.Reader) OptionFn {
-	readerBytes, err := ioutil.ReadAll(f)
-	if err != nil {
-		logrus.Warnf("failed to ReadAll: %v", err)
-		return func(*Option) {}
-	}
-
-	return WithBytes(readerBytes)
 }
 
 // WithValidations defines the validations for the cells.

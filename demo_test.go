@@ -19,7 +19,7 @@ func TestDemo1(t *testing.T) {
 }
 
 func TestDemo2(t *testing.T) {
-	x, _ := xlsx.New(xlsx.WithTemplateFile("testdata/template.xlsx"))
+	x, _ := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
 	defer x.Close()
 
 	_ = x.Write([]memberStat{

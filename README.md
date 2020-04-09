@@ -33,13 +33,13 @@ type memberStat struct {
 
 func main() {
 	x, _ := xlsx.New()
-    defer x.Close()
+	defer x.Close()
 
-    x.Write([]memberStat{
+	x.Write([]memberStat{
     		{Total: 100, New: 50, Effective: 50},
     		{Total: 200, New: 60, Effective: 140},
     	})
-    x.SaveToFile("testdata/test1.xlsx")
+	x.SaveToFile("testdata/test1.xlsx")
 }
 ```
 
@@ -50,7 +50,7 @@ you will get the result excel file in [testdata/demo1.xlsx](testdata/demo1.xlsx)
 ### Write excel with template file
 
 ```go
-x, _ := xlsx.New(xlsx.WithTemplateFile("testdata/template.xlsx"))
+x, _ := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
 defer x.Close()
 
 x.Write([]memberStat{
@@ -69,11 +69,11 @@ you will get the result excel file in [testdata/demo2.xlsx](testdata/demo2.xlsx)
 ```go
 var memberStats []memberStat
 
-x, _ := xlsx.New(xlsx.WithFile("testdata/test1.xlsx"))
+x, _ := xlsx.New(xlsx.WithExcel("testdata/test1.xlsx"))
 defer x.Close()
 
 if err := x.Read(&memberStats); err != nil {
-    panic(err)
+	panic(err)
 }
 
 assert.Equal(t, []memberStat{
@@ -155,7 +155,7 @@ type RegisterTable struct {
 }
 
 func demo() {
-	x, _ := xlsx.New(xlsx.WithTemplateFile("testdata/placeholder.xlsx"),  xlsx.AsPlaceholder())
+	x, _ := xlsx.New(xlsx.WithTemplate("testdata/placeholder.xlsx"),  xlsx.AsPlaceholder())
 	defer x.Close()
 
 	_ = x.Write(RegisterTable{
@@ -197,9 +197,9 @@ type RegisterTable struct {
 
 func demo() error {
 	x, err := xlsx.New(
-        xlsx.WithTemplateFile("testdata/placeholder.xlsx"), // 1. “占位符模板”excel文件
+        xlsx.WithTemplate("testdata/placeholder.xlsx"), // 1. “占位符模板”excel文件
         xlsx.AsPlaceholder(),
-		xlsx.WithFile("testdata/out_placeholder.xlsx"))     // 2. “待读取数据”excel文件
+		xlsx.WithExcel("testdata/out_placeholder.xlsx"))     // 2. “待读取数据”excel文件
     if err != nil {
         return err
     }

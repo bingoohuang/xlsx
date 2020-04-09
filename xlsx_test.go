@@ -36,7 +36,7 @@ type orderStat struct {
 }
 
 func Test2(t *testing.T) {
-	x, _ := xlsx.New(xlsx.WithTemplateFile("testdata/template.xlsx"))
+	x, _ := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
 	defer x.Close()
 
 	writeData(t, time.Now(), x, "testdata/out_template.xlsx")
@@ -52,7 +52,7 @@ func Test1(t *testing.T) {
 
 	var memberStats []memberStat
 
-	x2, _ := xlsx.New(xlsx.WithFile("testdata/out_direct.xlsx"))
+	x2, _ := xlsx.New(xlsx.WithExcel("testdata/out_direct.xlsx"))
 	defer x2.Close()
 
 	assert.Nil(t, x2.Read(&memberStats))
@@ -105,7 +105,7 @@ type memberStat2 struct {
 }
 
 func TestValidationTmpl(t *testing.T) {
-	x, _ := xlsx.New(xlsx.WithTemplateFile("testdata/tmpl_validate.xlsx"))
+	x, _ := xlsx.New(xlsx.WithTemplate("testdata/tmpl_validate.xlsx"))
 	defer x.Close()
 
 	err := x.Write([]memberStat2{
@@ -180,7 +180,7 @@ type RegisterTable struct {
 }
 
 func TestPlaceholder(t *testing.T) {
-	x, _ := xlsx.New(xlsx.WithTemplateFile("testdata/placeholder.xlsx"), xlsx.AsPlaceholder())
+	x, _ := xlsx.New(xlsx.WithTemplate("testdata/placeholder.xlsx"), xlsx.AsPlaceholder())
 	defer x.Close()
 
 	now, _ := time.ParseInLocation("2006-01-02 15:04:05", "2020-04-08 20:53:11", time.Local)
@@ -201,9 +201,9 @@ func TestPlaceholder(t *testing.T) {
 	_ = x.SaveToFile("testdata/out_placeholder.xlsx")
 
 	x2, _ := xlsx.New(
-		xlsx.WithTemplateFile("testdata/placeholder.xlsx"),
+		xlsx.WithTemplate("testdata/placeholder.xlsx"),
 		xlsx.AsPlaceholder(),
-		xlsx.WithFile("testdata/out_placeholder.xlsx"))
+		xlsx.WithExcel("testdata/out_placeholder.xlsx"))
 	defer x2.Close()
 
 	var v RegisterTable

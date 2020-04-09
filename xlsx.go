@@ -83,10 +83,9 @@ func (x *Xlsx) Write(beans interface{}) error {
 		}
 
 		beanType = beanReflectValue.Type().Elem()
-	}
-
-	if beanType.Kind() == reflect.Ptr {
+	} else if beanType.Kind() == reflect.Ptr {
 		beanType = beanType.Elem()
+		beanReflectValue = beanReflectValue.Elem()
 	}
 
 	ttag := findTTag(beanType)
@@ -104,7 +103,7 @@ func (x *Xlsx) Write(beans interface{}) error {
 	location := x.locateTitleRow(fields, titles, false)
 	customizedTitle = customizedTitle && !location.isValid()
 
-	if writeTitle := customizedTitle || ttag.Get("title") != ""; writeTitle {
+	if writeTitles := customizedTitle || ttag.Get("title") != ""; writeTitles {
 		x.writeTitles(fields, titles)
 	}
 
@@ -492,14 +491,10 @@ func getFieldValue(field reflect.StructField, value reflect.Value) string {
 		}
 
 		return fv.Format(format)
-	case string:
-		return fv
-	case bool:
-		return fmt.Sprintf("%v", fv)
 	case nil:
 		return ""
 	default:
-		return ""
+		return fmt.Sprintf("%v", fv)
 	}
 }
 
@@ -516,7 +511,7 @@ func setCellValue(cell spreadsheet.Cell, field reflect.StructField, value reflec
 		if format := field.Tag.Get("format"); format != "" {
 			cell.SetString(fv.Format(ParseJavaTimeFormat(format)))
 		} else {
-			cell.SetTime(fv)
+			cell.SetString(fv.Format("2006-01-02 15:04:05"))
 		}
 	case string:
 		cell.SetString(fv)

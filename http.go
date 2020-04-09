@@ -35,7 +35,7 @@ func (u *upload) parseUploadFile() (*spreadsheet.Workbook, error) {
 func (x *Xlsx) Download(w http.ResponseWriter, filename string) error {
 	h := w.Header().Set
 
-	h("Content-Disposition", createContentDisposition(filename))
+	h("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
 	h("Content-Description", "File Transfer")
 	h("Content-Type", "application/octet-stream")
 	h("Content-Transfer-Encoding", "binary")
@@ -44,8 +44,4 @@ func (x *Xlsx) Download(w http.ResponseWriter, filename string) error {
 	h("Pragma", "public")
 
 	return x.Save(w)
-}
-
-func createContentDisposition(filename string) string {
-	return mime.FormatMediaType("attachment", map[string]string{"filename": filename})
 }

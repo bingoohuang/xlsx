@@ -68,8 +68,7 @@ func parseExcel(f interface{}) (wb *spreadsheet.Workbook, err error) {
 	case []byte:
 		return spreadsheet.Read(bytes.NewReader(ft), int64(len(ft)))
 	case io.Reader:
-		bs, err = ioutil.ReadAll(ft)
-		if err != nil {
+		if bs, err = ioutil.ReadAll(ft); err != nil {
 			return nil, err
 		}
 

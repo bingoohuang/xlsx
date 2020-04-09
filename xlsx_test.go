@@ -1,6 +1,8 @@
 package xlsx_test
 
 import (
+	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
@@ -85,7 +87,11 @@ func writeData(t *testing.T, now time.Time, x *xlsx.Xlsx, file string) {
 		{Day: now.AddDate(0, 0, -2), Num: 102, Subscribes: 502, PublicSubscribes: 402, PrivatesSubscribes: 102},
 	})
 
-	_ = x.Write([]orderStat{})
+	_ = x.Write(orderStat{
+		Day:   time.Now(),
+		Time:  10,
+		Heads: 20,
+	})
 
 	assert.Nil(t, x.SaveToFile(file))
 }
@@ -180,7 +186,9 @@ type RegisterTable struct {
 }
 
 func TestPlaceholder(t *testing.T) {
-	x, _ := xlsx.New(xlsx.WithTemplate("testdata/placeholder.xlsx"), xlsx.AsPlaceholder())
+	bs, _ := ioutil.ReadFile("testdata/placeholder.xlsx")
+	x, _ := xlsx.New(xlsx.WithTemplate(bs), xlsx.AsPlaceholder())
+
 	defer x.Close()
 
 	now, _ := time.ParseInLocation("2006-01-02 15:04:05", "2020-04-08 20:53:11", time.Local)
@@ -194,16 +202,19 @@ func TestPlaceholder(t *testing.T) {
 		Manufacturer: "来弄你",
 		DeviceModern: "X786",
 	}
-	err := x.Write(src)
+	err := x.Write(&src)
 
 	assert.Nil(t, err)
 
 	_ = x.SaveToFile("testdata/out_placeholder.xlsx")
 
+	file, _ := os.Open("testdata/placeholder.xlsx")
+	defer file.Close()
 	x2, _ := xlsx.New(
-		xlsx.WithTemplate("testdata/placeholder.xlsx"),
+		xlsx.WithTemplate(file),
 		xlsx.AsPlaceholder(),
 		xlsx.WithExcel("testdata/out_placeholder.xlsx"))
+
 	defer x2.Close()
 
 	var v RegisterTable

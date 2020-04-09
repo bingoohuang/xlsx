@@ -1,6 +1,5 @@
 # xlsx
 
-![CI](https://github.com/bingoohuang/xlsx/workflows/CI/badge.svg)
 [![Travis CI](https://img.shields.io/travis/bingoohuang/xlsx/master.svg?style=flat-square)](https://travis-ci.org/bingoohuang/xlsx)
 [![Software License](https://img.shields.io/badge/License-MIT-orange.svg?style=flat-square)](https://github.com/bingoohuang/xlsx/blob/master/LICENSE.md)
 [![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg?style=flat-square)](https://godoc.org/github.com/bingoohuang/xlsx)

@@ -35,10 +35,6 @@ func New(optionFns ...OptionFn) (x *Xlsx, err error) {
 	x.tmplWorkbook = x.option.TemplateWorkbook
 	x.workbook = x.option.Workbook
 
-	if err := x.readFile(); err != nil {
-		return nil, err
-	}
-
 	if x.workbook == nil && x.tmplWorkbook != nil {
 		x.workbook = x.tmplWorkbook
 		x.tmplWorkbook = nil
@@ -49,17 +45,6 @@ func New(optionFns ...OptionFn) (x *Xlsx, err error) {
 	}
 
 	return x, nil
-}
-
-func (x *Xlsx) readFile() (err error) {
-	if t := x.option.httpUpload; t != nil {
-		if x.workbook, err = t.parseUploadFile(); err != nil {
-			logrus.Warnf("failed to parseUploadFile for the file key %s: %v", t.filenameKey, err)
-			return err
-		}
-	}
-
-	return nil
 }
 
 // Close does some cleanup like remove temporary files.
@@ -156,6 +141,11 @@ func (r *run) forRead() bool {
 	return r.isPtr && (r.isSlice || r.beanType.Kind() == reflect.Struct)
 }
 
+func (r *run) AsPlaceholderTtag() bool {
+	v := r.FindTtag("asPlaceholder")
+	return v == "true" || v == "on" || v == "yes" || v == "1"
+}
+
 // Write Writes beans to the underlying xlsx.
 func (x *Xlsx) Write(beans interface{}) error {
 	r := makeRun(beans)
@@ -165,14 +155,14 @@ func (x *Xlsx) Write(beans interface{}) error {
 
 	x.currentSheet = x.createSheet(x.workbook, r, false)
 
-	if x.option.Placeholder {
-		x.processPlaceholders(r)
+	if r.AsPlaceholderTtag() {
+		x.writePlaceholderTemplate(r.fields, collectPlaceholders(x.currentSheet), r.getSingleBean())
 
 		return nil
 	}
 
 	titles, customizedTitle := collectTitles(r.fields)
-	location := x.locateTitleRow(r.fields, titles, false)
+	location := x.locateTitleRow(r.fields, titles)
 	customizedTitle = customizedTitle && !location.isValid()
 
 	if writeTitles := customizedTitle || r.FindTtag("title") != ""; writeTitles {
@@ -204,12 +194,6 @@ func (x *Xlsx) Write(beans interface{}) error {
 	}
 
 	return x.createDataValidations(r.fields, x.currentSheet)
-}
-
-func (x *Xlsx) processPlaceholders(r *run) {
-	placeholders := collectPlaceholders(x.currentSheet)
-
-	x.writePlaceholderTemplate(r.fields, placeholders, r.getSingleBean())
 }
 
 func (x *Xlsx) writePlaceholderTemplate(fields []reflect.StructField,
@@ -324,7 +308,7 @@ func (x *Xlsx) Read(slicePtr interface{}) error {
 	x.tmplSheet = x.createSheet(x.tmplWorkbook, r, true)
 	x.currentSheet = x.createSheet(x.workbook, r, true)
 
-	if x.option.Placeholder {
+	if r.AsPlaceholderTtag() {
 		err := x.writePlaceholderToBean(r)
 		if err != nil {
 			return err
@@ -334,7 +318,7 @@ func (x *Xlsx) Read(slicePtr interface{}) error {
 	}
 
 	titles, _ := collectTitles(r.fields)
-	location := x.locateTitleRow(r.fields, titles, true)
+	location := x.locateTitleRow(r.fields, titles)
 
 	if location.isValid() {
 		slice, err := x.readRows(r.beanType, location)
@@ -544,7 +528,6 @@ func (x *Xlsx) writeTitles(fields []reflect.StructField, titles []string) {
 
 type templateLocation struct {
 	titledRowNumber int
-	rowsEndIndex    int
 	templateCells   []templateCell
 	templateRows    []spreadsheet.Row
 }
@@ -558,20 +541,19 @@ func (t *templateLocation) isValid() bool {
 	return len(t.templateCells) > 0
 }
 
-func (x *Xlsx) locateTitleRow(fields []reflect.StructField, titles []string, forRead bool) templateLocation {
+func (x *Xlsx) locateTitleRow(fields []reflect.StructField, titles []string) templateLocation {
 	if !x.hasInput() {
 		return templateLocation{}
 	}
 
 	rows := x.currentSheet.Rows()
 	titledRowNumber, templateCells := x.findTemplateTitledRow(fields, titles, rows)
-	templateRows := x.findTemplateRows(titledRowNumber, templateCells, rows, forRead)
+	templateRows := x.findTemplateRows(titledRowNumber, rows)
 
 	return templateLocation{
 		titledRowNumber: titledRowNumber,
 		templateRows:    templateRows,
 		templateCells:   templateCells,
-		rowsEndIndex:    len(rows),
 	}
 }
 
@@ -613,25 +595,16 @@ func (x *Xlsx) findTemplateTitledRow(fields []reflect.StructField,
 	return titledRowNumber, templateCells
 }
 
-func (x *Xlsx) findTemplateRows(titledRowNumber int,
-	templateCells []templateCell, rows []spreadsheet.Row, forRead bool) []spreadsheet.Row {
+func (x *Xlsx) findTemplateRows(titledRowNumber int, rows []spreadsheet.Row) []spreadsheet.Row {
 	templateRows := make([]spreadsheet.Row, 0)
 
 	if titledRowNumber < 0 {
 		return templateRows
 	}
 
-	col := templateCells[0].cellColumn
-
 	for _, row := range rows {
-		if row.RowNumber() <= uint32(titledRowNumber) {
-			continue
-		}
-
-		if forRead || strings.Contains(row.Cell(col).GetString(), "template") {
+		if row.RowNumber() > uint32(titledRowNumber) {
 			templateRows = append(templateRows, row)
-		} else if len(templateRows) == 0 {
-			return append(templateRows, row)
 		}
 	}
 
@@ -741,15 +714,11 @@ func ConvertNumberToFloat64(v interface{}) (float64, bool) {
 }
 
 func formatTime(tag reflect.StructTag, t time.Time) string {
-	format := tag.Get("format")
-
-	if format != "" {
-		format = ParseJavaTimeFormat(format)
-	} else {
-		format = "2006-01-02 15:04:05"
+	if v := tag.Get("format"); v != "" {
+		return t.Format(ParseJavaTimeFormat(v))
 	}
 
-	return t.Format(format)
+	return t.Format("2006-01-02 15:04:05")
 }
 
 func parseTime(tag reflect.StructTag, s string) (time.Time, error) {

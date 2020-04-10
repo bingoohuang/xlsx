@@ -4,24 +4,27 @@ import (
 	"mime"
 	"net/http"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/unidoc/unioffice/spreadsheet"
 )
 
-type upload struct {
-	r           *http.Request
-	filenameKey string
-}
-
 // WithUpload defines the input excel file for reading.
 func WithUpload(r *http.Request, filenameKey string) OptionFn {
-	return func(o *Option) { o.httpUpload = &upload{r: r, filenameKey: filenameKey} }
+	wb, err := parseUploadFile(r, filenameKey)
+	if err != nil {
+		logrus.Warnf("failed to open template excel %v", err)
+		return nil
+	}
+
+	return func(o *Option) { o.Workbook = wb }
 }
 
-func (u *upload) parseUploadFile() (*spreadsheet.Workbook, error) {
-	// nolint gomnd
-	_ = u.r.ParseMultipartForm(32 << 20) // limit your max input length!
+// nolint gomnd
+func parseUploadFile(r *http.Request, filenameKey string) (*spreadsheet.Workbook, error) {
+	_ = r.ParseMultipartForm(32 << 20) // limit your max input length!
 
-	file, header, err := u.r.FormFile(u.filenameKey)
+	file, header, err := r.FormFile(filenameKey)
 	if err != nil {
 		return nil, err
 	}

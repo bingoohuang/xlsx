@@ -24,11 +24,9 @@ func createOption(optionFns []OptionFn) *Option {
 
 // Option defines the option for the xlsx processing.
 type Option struct {
-	TemplateWorkbook *spreadsheet.Workbook
-	Workbook         *spreadsheet.Workbook
-	httpUpload       *upload
-	Validations      map[string][]string
-	Placeholder      bool
+	TemplateWorkbook, Workbook *spreadsheet.Workbook
+
+	Validations map[string][]string
 }
 
 // OptionFn defines the func to change the option.
@@ -43,11 +41,6 @@ func WithTemplate(f interface{}) OptionFn {
 	}
 
 	return func(o *Option) { o.TemplateWorkbook = wb }
-}
-
-// AsPlaceholder defines the template excel file for writing template in placeholder mode.
-func AsPlaceholder() OptionFn {
-	return func(o *Option) { o.Placeholder = true }
 }
 
 // WithExcel defines the input excel file for reading.

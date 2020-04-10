@@ -146,6 +146,8 @@ func demo() {
 
 ```go
 type RegisterTable struct {
+    xlsx.T `asPlaceholder:"true"`
+
 	ContactName  string    // 联系人
 	Mobile       string    // 手机
 	Landline     string    // 座机
@@ -156,7 +158,7 @@ type RegisterTable struct {
 }
 
 func demo() {
-	x, _ := xlsx.New(xlsx.WithTemplate("testdata/placeholder.xlsx"),  xlsx.AsPlaceholder())
+	x, _ := xlsx.New(xlsx.WithTemplate("testdata/placeholder.xlsx"))
 	defer x.Close()
 
 	_ = x.Write(RegisterTable{
@@ -187,6 +189,8 @@ func demo() {
 
 ```go
 type RegisterTable struct {
+    xlsx.T `asPlaceholder:"true"`
+
 	ContactName  string    // 联系人
 	Mobile       string    // 手机
 	Landline     string    // 座机
@@ -199,7 +203,6 @@ type RegisterTable struct {
 func demo() error {
 	x, err := xlsx.New(
         xlsx.WithTemplate("testdata/placeholder.xlsx"), // 1. “占位符模板”excel文件
-        xlsx.AsPlaceholder(),
 		xlsx.WithExcel("testdata/out_placeholder.xlsx"))     // 2. “待读取数据”excel文件
     if err != nil {
         return err

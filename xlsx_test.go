@@ -32,7 +32,7 @@ type schedule struct {
 type orderStat struct {
 	xlsx.T `sheet:"订课情况"`
 
-	Day   time.Time `title:"订单日期"`
+	Day   time.Time `title:"订单日期" format:"yyyy-MM-dd"`
 	Time  int       `title:"人次"`
 	Heads int       `title:"人数"`
 }
@@ -62,6 +62,11 @@ func Test1(t *testing.T) {
 	assert.Equal(t, []memberStat{
 		{Total: 100, New: 50, Effective: 50},
 		{Total: 200, New: 60, Effective: 140},
+		{Total: 300, New: 70, Effective: 150},
+		{Total: 400, New: 80, Effective: 160},
+		{Total: 500, New: 90, Effective: 180},
+		{Total: 600, New: 96, Effective: 186},
+		{Total: 700, New: 97, Effective: 187},
 	}, memberStats)
 
 	var schedules []schedule
@@ -79,6 +84,11 @@ func writeData(t *testing.T, now time.Time, x *xlsx.Xlsx, file string) {
 	_ = x.Write([]memberStat{
 		{Total: 100, New: 50, Effective: 50},
 		{Total: 200, New: 60, Effective: 140},
+		{Total: 300, New: 70, Effective: 150},
+		{Total: 400, New: 80, Effective: 160},
+		{Total: 500, New: 90, Effective: 180},
+		{Total: 600, New: 96, Effective: 186},
+		{Total: 700, New: 97, Effective: 187},
 	})
 
 	_ = x.Write([]schedule{
@@ -178,10 +188,12 @@ func TestValidationWith(t *testing.T) {
 }
 
 type RegisterTable struct {
+	xlsx.T `asPlaceholder:"true"`
+
 	ContactName  string    // 联系人
 	Mobile       string    // 手机
 	Landline     string    // 座机
-	RegisterDate time.Time // 登记日期
+	RegisterDate time.Time `format:"yyyy-MM-dd"`  // 登记日期
 	DeviceType   string    `placeholderCell:"C8"` // 类型
 	Manufacturer string    // 生产厂家
 	DeviceModern string    // 型号
@@ -189,11 +201,11 @@ type RegisterTable struct {
 
 func TestPlaceholder(t *testing.T) {
 	bs, _ := ioutil.ReadFile("testdata/placeholder.xlsx")
-	x, _ := xlsx.New(xlsx.WithTemplate(bs), xlsx.AsPlaceholder())
+	x, _ := xlsx.New(xlsx.WithTemplate(bs))
 
 	defer x.Close()
 
-	now, _ := time.ParseInLocation("2006-01-02 15:04:05", "2020-04-08 20:53:11", time.Local)
+	now, _ := time.ParseInLocation("2006-01-02", "2020-04-08", time.Local)
 
 	src := RegisterTable{
 		ContactName:  "隔壁老王",
@@ -215,7 +227,6 @@ func TestPlaceholder(t *testing.T) {
 	defer file.Close()
 	x2, _ := xlsx.New(
 		xlsx.WithTemplate(file),
-		xlsx.AsPlaceholder(),
 		xlsx.WithExcel("testdata/out_placeholder.xlsx"))
 
 	defer x2.Close()

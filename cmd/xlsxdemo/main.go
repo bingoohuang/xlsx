@@ -9,10 +9,12 @@ import (
 
 // RegisterTable 注册登记表信息
 type RegisterTable struct {
+	xlsx.T `asPlaceholder:"true"`
+
 	ContactName  string    // 联系人
 	Mobile       string    // 手机
 	Landline     string    // 座机
-	RegisterDate time.Time // 登记日期
+	RegisterDate time.Time `format:"yyyy-MM-dd"`  // 登记日期
 	DeviceType   string    `placeholderCell:"C9"` // 类型
 	Manufacturer string    // 生产厂家
 	DeviceModern string    // 型号
@@ -24,7 +26,7 @@ func init() {
 }
 
 func main() {
-	x, _ := xlsx.New(xlsx.WithTemplate("testdata/placeholder.xlsx"), xlsx.AsPlaceholder())
+	x, _ := xlsx.New(xlsx.WithTemplate("testdata/placeholder.xlsx"))
 	defer x.Close()
 
 	_ = x.Write(RegisterTable{

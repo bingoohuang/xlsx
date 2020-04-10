@@ -6,7 +6,6 @@
 [![Coverage Status](http://codecov.io/github/bingoohuang/xlsx/coverage.svg?branch=master)](http://codecov.io/github/bingoohuang/xlsx?branch=master)
 [![goreport](https://www.goreportcard.com/badge/github.com/bingoohuang/xlsx)](https://www.goreportcard.com/report/github.com/bingoohuang/xlsx)
 
-
 golang mapping between xlsx and struct instances.
 
 本库提供高层golang的struct切片和excel文件的映射，避免直接处理底层sheet/row/cells等细节。

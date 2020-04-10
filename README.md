@@ -4,6 +4,7 @@
 [![Software License](https://img.shields.io/badge/License-MIT-orange.svg?style=flat-square)](https://github.com/bingoohuang/xlsx/blob/master/LICENSE.md)
 [![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg?style=flat-square)](https://godoc.org/github.com/bingoohuang/xlsx)
 [![Coverage Status](http://codecov.io/github/bingoohuang/xlsx/coverage.svg?branch=master)](http://codecov.io/github/bingoohuang/xlsx?branch=master)
+[![goreport](https://www.goreportcard.com/badge/github.com/bingoohuang/xlsx)](https://www.goreportcard.com/report/github.com/bingoohuang/xlsx)
 
 
 golang mapping between xlsx and struct instances.

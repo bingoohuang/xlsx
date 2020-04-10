@@ -7,6 +7,7 @@ import (
 	"github.com/bingoohuang/xlsx"
 )
 
+// RegisterTable 注册登记表信息
 type RegisterTable struct {
 	ContactName  string    // 联系人
 	Mobile       string    // 手机

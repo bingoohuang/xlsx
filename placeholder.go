@@ -48,21 +48,26 @@ func (p *PlaceholderValue) ParseVars(content string) (outVars map[string]string,
 			}
 
 			content = content[len(v.Part):]
-		} else {
-			if i+1 >= len(p.Parts) {
-				outVars[v.Var] = content
-			} else {
-				i++
-				v2 := p.Parts[i]
-				v2Pos := strings.Index(content, v2.Part)
-				if v2Pos < 0 {
-					return nil, false
-				}
 
-				outVars[v.Var] = content[:v2Pos]
-				content = content[v2Pos+len(v2.Part):]
-			}
+			continue
 		}
+
+		if i+1 >= len(p.Parts) {
+			outVars[v.Var] = content
+
+			continue
+		}
+
+		i++
+		v2 := p.Parts[i]
+		v2Pos := strings.Index(content, v2.Part)
+
+		if v2Pos < 0 {
+			return nil, false
+		}
+
+		outVars[v.Var] = content[:v2Pos]
+		content = content[v2Pos+len(v2.Part):]
 	}
 
 	return outVars, true

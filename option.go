@@ -14,7 +14,9 @@ func createOption(optionFns []OptionFn) *Option {
 	option := &Option{}
 
 	for _, fn := range optionFns {
-		fn(option)
+		if fn != nil {
+			fn(option)
+		}
 	}
 
 	return option
@@ -37,7 +39,7 @@ func WithTemplate(f interface{}) OptionFn {
 	wb, err := parseExcel(f)
 	if err != nil {
 		logrus.Warnf("failed to open template excel %v", err)
-		return func(*Option) {}
+		return nil
 	}
 
 	return func(o *Option) { o.TemplateWorkbook = wb }
@@ -53,7 +55,7 @@ func WithExcel(f interface{}) OptionFn {
 	wb, err := parseExcel(f)
 	if err != nil {
 		logrus.Warnf("failed to open excel %v", err)
-		return func(*Option) {}
+		return nil
 	}
 
 	return func(o *Option) { o.Workbook = wb }

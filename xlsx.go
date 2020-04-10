@@ -71,51 +71,123 @@ func (x *Xlsx) Close() error {
 	return x.workbook.Close()
 }
 
-// Write Writes beans to the underlying xlsx.
-func (x *Xlsx) Write(beans interface{}) error {
-	beanReflectValue := reflect.ValueOf(beans)
-	beanType := beanReflectValue.Type()
-	isSlice := beanReflectValue.Kind() == reflect.Slice
+type run struct {
+	isSlice   bool
+	isPtr     bool
+	beanType  reflect.Type
+	rawValue  reflect.Value
+	beanValue reflect.Value
+	ttags     []reflect.StructTag
+	fields    []reflect.StructField
+}
 
-	if isSlice {
-		if beanReflectValue.Len() == 0 {
-			return nil
-		}
+func makeRun(beans interface{}) *run {
+	r := &run{}
+	r.rawValue = reflect.ValueOf(beans)
+	r.beanValue = r.rawValue
+	r.beanType = r.beanValue.Type()
+	r.isPtr = r.beanType.Kind() == reflect.Ptr
 
-		beanType = beanReflectValue.Type().Elem()
-	} else if beanType.Kind() == reflect.Ptr {
-		beanType = beanType.Elem()
-		beanReflectValue = beanReflectValue.Elem()
+	if r.isPtr {
+		r.beanType = r.beanType.Elem()
+		r.beanValue = r.beanValue.Elem()
 	}
 
-	ttag := findTTag(beanType)
-	x.currentSheet = x.createSheet(x.workbook, ttag, false)
+	r.isSlice = r.beanValue.Kind() == reflect.Slice
 
-	fields := collectExportableFields(beanType)
+	if r.isSlice {
+		r.beanType = r.beanType.Elem()
+	}
+
+	r.collectTtags()
+	r.collectExportableFields()
+
+	return r
+}
+
+func (r *run) isEmptySlice() bool {
+	return r.isSlice && r.beanValue.Len() == 0
+}
+
+func (r *run) collectTtags() {
+	r.ttags = make([]reflect.StructTag, 0)
+
+	for i := 0; i < r.beanType.NumField(); i++ {
+		if f := r.beanType.Field(i); f.Type == tType {
+			r.ttags = append(r.ttags, f.Tag)
+		}
+	}
+}
+
+func (r *run) FindTtag(tagName string) string {
+	for _, t := range r.ttags {
+		if v := t.Get(tagName); v != "" {
+			return v
+		}
+	}
+
+	return ""
+}
+
+func (r *run) collectExportableFields() {
+	t := r.beanType
+	r.fields = make([]reflect.StructField, 0, t.NumField())
+
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+
+		if f.PkgPath != "" || f.Type == tType {
+			continue
+		}
+
+		r.fields = append(r.fields, f)
+	}
+}
+
+func (r *run) getSingleBean() reflect.Value {
+	if r.isSlice {
+		return r.beanValue.Index(0)
+	}
+
+	return r.beanValue
+}
+
+func (r *run) forRead() bool {
+	return r.isPtr && (r.isSlice || r.beanType.Kind() == reflect.Struct)
+}
+
+// Write Writes beans to the underlying xlsx.
+func (x *Xlsx) Write(beans interface{}) error {
+	r := makeRun(beans)
+	if r.isEmptySlice() {
+		return nil
+	}
+
+	x.currentSheet = x.createSheet(x.workbook, r, false)
 
 	if x.option.Placeholder {
-		x.processPlaceholders(beanReflectValue, isSlice, fields)
+		x.processPlaceholders(r)
 
 		return nil
 	}
 
-	titles, customizedTitle := collectTitles(fields)
-	location := x.locateTitleRow(fields, titles, false)
+	titles, customizedTitle := collectTitles(r.fields)
+	location := x.locateTitleRow(r.fields, titles, false)
 	customizedTitle = customizedTitle && !location.isValid()
 
-	if writeTitles := customizedTitle || ttag.Get("title") != ""; writeTitles {
-		x.writeTitles(fields, titles)
+	if writeTitles := customizedTitle || r.FindTtag("title") != ""; writeTitles {
+		x.writeTitles(r.fields, titles)
 	}
 
 	if location.isValid() {
 		x.rowsWritten = 0
 
-		if isSlice {
-			for i := 0; i < beanReflectValue.Len(); i++ {
-				x.writeTemplateRow(location, beanReflectValue.Index(i))
+		if r.isSlice {
+			for i := 0; i < r.beanValue.Len(); i++ {
+				x.writeTemplateRow(location, r.beanValue.Index(i))
 			}
 		} else {
-			x.writeTemplateRow(location, beanReflectValue)
+			x.writeTemplateRow(location, r.beanValue)
 		}
 
 		x.removeTempleRows(location)
@@ -123,26 +195,21 @@ func (x *Xlsx) Write(beans interface{}) error {
 		return x.createTemplateDataValidations(location, x.currentSheet)
 	}
 
-	if isSlice {
-		for i := 0; i < beanReflectValue.Len(); i++ {
-			x.writeRow(fields, beanReflectValue.Index(i))
+	if r.isSlice {
+		for i := 0; i < r.beanValue.Len(); i++ {
+			x.writeRow(r.fields, r.beanValue.Index(i))
 		}
 	} else {
-		x.writeRow(fields, beanReflectValue)
+		x.writeRow(r.fields, r.beanValue)
 	}
 
-	return x.createDataValidations(fields, x.currentSheet)
+	return x.createDataValidations(r.fields, x.currentSheet)
 }
 
-func (x *Xlsx) processPlaceholders(beanReflectValue reflect.Value, isSlice bool, fields []reflect.StructField) {
+func (x *Xlsx) processPlaceholders(r *run) {
 	placeholders := collectPlaceholders(x.currentSheet)
-	v := beanReflectValue
 
-	if isSlice {
-		v = beanReflectValue.Index(0)
-	}
-
-	x.writePlaceholderTemplate(fields, placeholders, v)
+	x.writePlaceholderTemplate(r.fields, placeholders, r.getSingleBean())
 }
 
 func (x *Xlsx) writePlaceholderTemplate(fields []reflect.StructField,
@@ -248,26 +315,17 @@ func (x *Xlsx) createColumnDataValidation(startRowNum int, sheet spreadsheet.She
 }
 
 func (x *Xlsx) Read(slicePtr interface{}) error {
-	v := reflect.ValueOf(slicePtr)
-	if v.Kind() != reflect.Ptr || v.Elem().Kind() != reflect.Slice && v.Elem().Kind() != reflect.Struct {
+	r := makeRun(slicePtr)
+
+	if !r.forRead() {
 		return errors.New("the input argument should be a pointer of slice")
 	}
 
-	beanType := v.Elem().Type()
-
-	if v.Elem().Kind() == reflect.Slice {
-		beanType = v.Elem().Type().Elem()
-	}
-
-	ttag := findTTag(beanType)
-
-	x.tmplSheet = x.createSheet(x.tmplWorkbook, ttag, true)
-	x.currentSheet = x.createSheet(x.workbook, ttag, true)
-
-	fields := collectExportableFields(beanType)
+	x.tmplSheet = x.createSheet(x.tmplWorkbook, r, true)
+	x.currentSheet = x.createSheet(x.workbook, r, true)
 
 	if x.option.Placeholder {
-		err := x.writePlaceholderToBean(v, fields)
+		err := x.writePlaceholderToBean(r)
 		if err != nil {
 			return err
 		}
@@ -275,26 +333,26 @@ func (x *Xlsx) Read(slicePtr interface{}) error {
 		return nil
 	}
 
-	titles, _ := collectTitles(fields)
-	location := x.locateTitleRow(fields, titles, true)
+	titles, _ := collectTitles(r.fields)
+	location := x.locateTitleRow(r.fields, titles, true)
 
 	if location.isValid() {
-		slice, err := x.readRows(beanType, location)
+		slice, err := x.readRows(r.beanType, location)
 		if err != nil {
 			return err
 		}
 
-		v.Elem().Set(slice)
+		r.rawValue.Elem().Set(slice)
 	}
 
 	return nil
 }
 
-func (x *Xlsx) writePlaceholderToBean(v reflect.Value, fields []reflect.StructField) error {
+func (x *Xlsx) writePlaceholderToBean(r *run) error {
 	vars := x.readPlaceholderValues()
-	vv := v.Elem()
+	vv := r.beanValue
 
-	for _, f := range fields {
+	for _, f := range r.fields {
 		if v := f.Tag.Get("placeholderCell"); v != "" {
 			vs := x.currentSheet.Cell(v).GetString()
 			if err := setFieldValue(vv, f, vs); err != nil {
@@ -352,7 +410,7 @@ func setFieldValue(rowBean reflect.Value, sf reflect.StructField, s string) erro
 	f := rowBean.FieldByIndex(sf.Index)
 
 	if sf.Type == timeType {
-		t, err := parseTime(sf, s)
+		t, err := parseTime(sf.Tag, s)
 		if err != nil {
 			return err
 		}
@@ -373,22 +431,14 @@ func setFieldValue(rowBean reflect.Value, sf reflect.StructField, s string) erro
 	return nil
 }
 
-func parseTime(sf reflect.StructField, s string) (time.Time, error) {
-	if f := sf.Tag.Get("format"); f != "" {
-		return time.ParseInLocation(ParseJavaTimeFormat(f), s, time.Local)
-	}
-
-	return dateparse.ParseLocal(s)
-}
-
-func (x *Xlsx) createSheet(wb *spreadsheet.Workbook, ttag reflect.StructTag, readonly bool) spreadsheet.Sheet {
+func (x *Xlsx) createSheet(wb *spreadsheet.Workbook, r *run, readonly bool) spreadsheet.Sheet {
 	wbSheet := spreadsheet.Sheet{}
 
 	if wb == nil {
 		return wbSheet
 	}
 
-	sheetName := ttag.Get("sheet")
+	sheetName := r.FindTtag("sheet")
 
 	if x.hasInput() {
 		if sh := x.findSheet(wb, sheetName); sh.IsValid() {
@@ -432,32 +482,6 @@ func collectTitles(fields []reflect.StructField) ([]string, bool) {
 	return titles, customizedTitle
 }
 
-func collectExportableFields(t reflect.Type) []reflect.StructField {
-	fields := make([]reflect.StructField, 0, t.NumField())
-
-	for i := 0; i < t.NumField(); i++ {
-		f := t.Field(i)
-
-		if f.PkgPath != "" || f.Type == tType {
-			continue
-		}
-
-		fields = append(fields, f)
-	}
-
-	return fields
-}
-
-func findTTag(t reflect.Type) reflect.StructTag {
-	for i := 0; i < t.NumField(); i++ {
-		if f := t.Field(i); f.Type == tType {
-			return f.Tag
-		}
-	}
-
-	return ""
-}
-
 // SaveToFile writes the workbook out to a file.
 func (x *Xlsx) SaveToFile(file string) error { return x.workbook.SaveToFile(file) }
 
@@ -482,15 +506,7 @@ func getFieldValue(field reflect.StructField, value reflect.Value) string {
 
 	switch fv := v.(type) {
 	case time.Time:
-		format := field.Tag.Get("format")
-
-		if format != "" {
-			format = ParseJavaTimeFormat(format)
-		} else {
-			format = "2006-01-02 15:04:05"
-		}
-
-		return fv.Format(format)
+		return formatTime(field.Tag, fv)
 	case nil:
 		return ""
 	default:
@@ -508,11 +524,7 @@ func setCellValue(cell spreadsheet.Cell, field reflect.StructField, value reflec
 
 	switch fv := v.(type) {
 	case time.Time:
-		if format := field.Tag.Get("format"); format != "" {
-			cell.SetString(fv.Format(ParseJavaTimeFormat(format)))
-		} else {
-			cell.SetString(fv.Format("2006-01-02 15:04:05"))
-		}
+		cell.SetString(formatTime(field.Tag, fv))
 	case string:
 		cell.SetString(fv)
 	case bool:
@@ -726,4 +738,24 @@ func ConvertNumberToFloat64(v interface{}) (float64, bool) {
 	}
 
 	return 0, false
+}
+
+func formatTime(tag reflect.StructTag, t time.Time) string {
+	format := tag.Get("format")
+
+	if format != "" {
+		format = ParseJavaTimeFormat(format)
+	} else {
+		format = "2006-01-02 15:04:05"
+	}
+
+	return t.Format(format)
+}
+
+func parseTime(tag reflect.StructTag, s string) (time.Time, error) {
+	if f := tag.Get("format"); f != "" {
+		return time.ParseInLocation(ParseJavaTimeFormat(f), s, time.Local)
+	}
+
+	return dateparse.ParseLocal(s)
 }

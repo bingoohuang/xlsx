@@ -58,4 +58,12 @@ func TestParsePlaceholder(t *testing.T) {
 	vars, ok = nameArgs.ParseVars("中国中央人民政府")
 	assert.True(t, ok)
 	assert.Equal(t, map[string]string{"v1": "中央", "v2": "政府"}, vars)
+
+	vars, ok = nameArgs.ParseVars("英国中央人民政府")
+	assert.False(t, ok)
+	assert.Nil(t, vars)
+
+	vars, ok = nameArgs.ParseVars("中国中央北京政府")
+	assert.False(t, ok)
+	assert.Nil(t, vars)
 }

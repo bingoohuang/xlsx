@@ -146,6 +146,8 @@ func TestValidation(t *testing.T) {
 
 	assert.Nil(t, err)
 
+	assert.Nil(t, x.Write([]memberStat22{}))
+
 	_ = x.SaveToFile("testdata/out_validation.xlsx")
 }
 
@@ -202,9 +204,10 @@ func TestPlaceholder(t *testing.T) {
 		Manufacturer: "来弄你",
 		DeviceModern: "X786",
 	}
-	err := x.Write(&src)
 
-	assert.Nil(t, err)
+	assert.Nil(t, x.Write(&src))
+	assert.Nil(t, x.Write(src))
+	assert.Nil(t, x.Write([]RegisterTable{src}))
 
 	_ = x.SaveToFile("testdata/out_placeholder.xlsx")
 
@@ -219,8 +222,7 @@ func TestPlaceholder(t *testing.T) {
 
 	var v RegisterTable
 
-	err = x2.Read(&v)
-
-	assert.Nil(t, err)
+	assert.Nil(t, x2.Read(&v))
 	assert.Equal(t, src, v)
+	assert.NotNil(t, x2.Read(v))
 }

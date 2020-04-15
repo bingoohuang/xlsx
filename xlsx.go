@@ -16,7 +16,7 @@ import (
 )
 
 // T just for tag for convenience to declare some tags for the whole structure.
-type T interface{ t() }
+type T struct{}
 
 // Xlsx is the structure for xlsx processing.
 type Xlsx struct {

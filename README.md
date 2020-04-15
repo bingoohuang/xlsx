@@ -36,9 +36,9 @@ func main() {
 	defer x.Close()
 
 	x.Write([]memberStat{
-    		{Total: 100, New: 50, Effective: 50},
-    		{Total: 200, New: 60, Effective: 140},
-    	})
+			{Total: 100, New: 50, Effective: 50},
+			{Total: 200, New: 60, Effective: 140},
+		})
 	x.SaveToFile("testdata/test1.xlsx")
 }
 ```
@@ -77,8 +77,8 @@ if err := x.Read(&memberStats); err != nil {
 }
 
 assert.Equal(t, []memberStat{
-    {Total: 100, New: 50, Effective: 50},
-    {Total: 200, New: 60, Effective: 140},
+	{Total: 100, New: 50, Effective: 50},
+	{Total: 200, New: 60, Effective: 140},
 }, memberStats)
 ```
 
@@ -203,9 +203,9 @@ func demo() error {
 	x, err := xlsx.New(
         xlsx.WithTemplate("testdata/placeholder.xlsx"), // 1. “占位符模板”excel文件
 		xlsx.WithExcel("testdata/out_placeholder.xlsx"))     // 2. “待读取数据”excel文件
-    if err != nil {
-        return err
-    }
+	if err != nil {
+		return err
+	}
 
 	defer x2.Close()
 
@@ -213,7 +213,7 @@ func demo() error {
 
 	err = x2.Read(&v)
 	if err != nil {
-        return err
-    }
+		return err
+	}
 }
 ```

@@ -24,7 +24,7 @@ package main
 import "github.com/bingoohuang/xlsx"
 
 type memberStat struct {
-	xlsx.T `sheet:"会员"` // 可选，如果不声明，会默认选择第一个sheet页进行读写
+	xlsx.T `sheet:"会员"` // 可选，不声明则选择首个sheet页读写
 
 	Total     int `title:"会员总数"`
 	New       int `title:"其中：新增"`
@@ -43,7 +43,7 @@ func main() {
 }
 ```
 
-you will get the result excel file in [testdata/demo1.xlsx](testdata/demo1.xlsx) as the following:
+you will get the [result excel file](testdata/out_demo1.xlsx) as the following:
 
 ![image](https://user-images.githubusercontent.com/1940588/77844342-a1d22580-71d8-11ea-8eb9-6f82f87c3a3a.png)
 
@@ -60,7 +60,7 @@ x.Write([]memberStat{
 x.SaveToFile("testdata/test1.xlsx")
 ```
 
-you will get the result excel file in [testdata/demo2.xlsx](testdata/demo2.xlsx) as the following:
+you will get the [result excel file](testdata/out_demo2.xlsx) as the following:
 
 ![image](https://user-images.githubusercontent.com/1940588/77844394-0ee5bb00-71d9-11ea-8671-6b36eb6a728b.png)
 

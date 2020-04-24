@@ -1,10 +1,10 @@
 package main
 
 import (
-	"flag"
 	"time"
 
 	"github.com/bingoohuang/xlsx"
+	"github.com/spf13/pflag"
 )
 
 // RegisterTable 注册登记表信息
@@ -20,14 +20,12 @@ type RegisterTable struct {
 	DeviceModern string    // 型号
 }
 
-// nolint gochecknoinits
-func init() {
-	flag.String("test.v", "true", "test.v")
-}
-
 func main() {
 	x, _ := xlsx.New(xlsx.WithTemplate("testdata/placeholder.xlsx"))
 	defer x.Close()
+
+	pflag.String("logrus", "", "logrus")
+	pflag.Parse()
 
 	_ = x.Write(RegisterTable{
 		ContactName:  "隔壁老王",

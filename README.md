@@ -217,3 +217,15 @@ func demo() error {
 	}
 }
 ```
+
+## Resources
+
+1. [awesome-go microsoft-excel](https://github.com/avelino/awesome-go#microsoft-excel)
+
+    *Libraries for working with Microsoft Excel.*
+    
+    * [excelize](https://github.com/360EntSecGroup-Skylar/excelize) - Golang library for reading and writing Microsoft Excel™ (XLSX) files.
+    * [go-excel](https://github.com/szyhf/go-excel) - A simple and light reader to read a relate-db-like excel as a table.
+    * [goxlsxwriter](https://github.com/fterrag/goxlsxwriter) - Golang bindings for libxlsxwriter for writing XLSX (Microsoft Excel) files.
+    * [xlsx](https://github.com/tealeg/xlsx) - Library to simplify reading the XML format used by recent version of Microsoft Excel in Go programs.
+    * [xlsx](https://github.com/plandem/xlsx) - Fast and safe way to read/update your existing Microsoft Excel files in Go programs.

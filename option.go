@@ -33,8 +33,12 @@ type Option struct {
 type OptionFn func(*Option)
 
 // WithTemplate defines the template excel file for writing template.
-func WithTemplate(f interface{}) OptionFn {
-	wb, err := parseExcel(f)
+// The template can be type of any of followings:
+// 1. a string for direct template excel file name
+// 2. a []byte for the content of template excel which loaded in advance, like use packr2 to read.
+// 3. a io.Reader.
+func WithTemplate(template interface{}) OptionFn {
+	wb, err := parseExcel(template)
 	if err != nil {
 		logrus.Warnf("failed to open template excel %v", err)
 		return nil
@@ -44,8 +48,12 @@ func WithTemplate(f interface{}) OptionFn {
 }
 
 // WithExcel defines the input excel file for reading.
-func WithExcel(f interface{}) OptionFn {
-	wb, err := parseExcel(f)
+// The excel can be type of any of followings:
+// 1. a string for direct excel file name
+// 2. a []byte for the content of excel which loaded in advance, like use packr2 to read.
+// 3. a io.Reader.
+func WithExcel(excel interface{}) OptionFn {
+	wb, err := parseExcel(excel)
 	if err != nil {
 		logrus.Warnf("failed to open excel %v", err)
 		return nil

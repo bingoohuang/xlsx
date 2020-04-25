@@ -1,15 +1,89 @@
 package xlsx_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/bingoohuang/gou/file"
+
 	"github.com/bingoohuang/xlsx"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func ExampleXlsx() {
+	type (
+		HostInfo struct {
+			ServerName         string    `title:"主机名称" name:"server_name" json:"serverName"`
+			ServerHostname     string    `title:"主机hostname" name:"server_hostname" json:"serverHostname"`
+			ServerIP           string    `title:"主机IP" name:"server_ip" json:"serverIp"`
+			ServerUserRtx      string    `title:"主机负责人(rtx)" name:"server_user_rtx" json:"serverUserRtx"`
+			Status             string    `name:"status" json:"status"` // 状态：0正常 1删除
+			InstanceID         string    `title:"实例ID" name:"instance_id" json:"instanceId"`
+			Region             string    `title:"服务器可用区" name:"region" json:"region"`
+			CreateTime         time.Time `name:"create_time" json:"createTime"` // 创建时间
+			UpdateTime         time.Time `name:"update_time" json:"updateTime"` // 修改时间
+			ServerUserFullName string    `name:"server_user_full_name" json:"serverUserFullName"`
+		}
+		Rsp struct {
+			Status  int        `json:"status"`
+			Message string     `json:"message"`
+			Data    []HostInfo `json:"data"`
+		}
+	)
+
+	var r Rsp
+
+	err := json.Unmarshal(file.ReadBytes("testdata/hostinfos.json"), &r)
+	fmt.Println("Unmarshal", err == nil)
+
+	x, _ := xlsx.New(xlsx.WithTemplate("testdata/hostinfos_template.xlsx"))
+	defer x.Close()
+
+	err = x.Write(r.Data)
+	fmt.Println("Write", err == nil)
+
+	err = x.SaveToFile("testdata/out_hostinfos.xlsx")
+	fmt.Println("SaveToFile", err == nil)
+	// Output:
+	// Unmarshal true
+	// Write true
+	// SaveToFile true
+}
+
+func ExampleNew() {
+	x, _ := xlsx.New()
+	defer x.Close()
+
+	_ = x.Write([]memberStat{
+		{Total: 100, New: 50, Effective: 50},
+		{Total: 200, New: 60, Effective: 140},
+	})
+
+	err := x.SaveToFile("testdata/out_demo1.xlsx")
+
+	// See: https://golang.org/pkg/testing/#hdr-Examples
+	fmt.Println("Write", err == nil)
+	// Output: Write true
+}
+
+func ExampleWithTemplate() {
+	x, _ := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
+	defer x.Close()
+
+	_ = x.Write([]memberStat{
+		{Total: 100, New: 50, Effective: 50},
+		{Total: 200, New: 60, Effective: 140},
+	})
+
+	err := x.SaveToFile("testdata/out_demo2.xlsx")
+	fmt.Println("Write", err == nil)
+	// Output: Write true
+}
 
 type memberStat struct {
 	xlsx.T `sheet:"会员"`

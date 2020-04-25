@@ -2,6 +2,7 @@ package xlsx
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"reflect"
@@ -30,6 +31,8 @@ func (x *Xlsx) hasInput() bool { return x.option.TemplateWorkbook != nil || x.op
 
 // New creates a new instance of Xlsx.
 func New(optionFns ...OptionFn) (x *Xlsx, err error) {
+	hackTestV()
+
 	x = &Xlsx{option: createOption(optionFns)}
 
 	x.tmplWorkbook = x.option.TemplateWorkbook
@@ -727,4 +730,15 @@ func parseTime(tag reflect.StructTag, s string) (time.Time, error) {
 	}
 
 	return dateparse.ParseLocal(s)
+}
+
+type flagNoopValue struct{}
+
+func (*flagNoopValue) String() string   { return "noop" }
+func (*flagNoopValue) Set(string) error { return nil }
+
+func hackTestV() {
+	if flag.Lookup("test.v") == nil {
+		flag.CommandLine.Var(&flagNoopValue{}, "test.v", "test.v")
+	}
 }

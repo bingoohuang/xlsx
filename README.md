@@ -24,9 +24,7 @@ package main
 import "github.com/bingoohuang/xlsx"
 
 type memberStat struct {
-	xlsx.T `sheet:"会员"` // 可选，不声明则选择首个sheet页读写
-
-	Total     int `title:"会员总数"`
+	Total     int `title:"会员总数" sheet:"会员"` // sheet可选，不声明则选择首个sheet页读写
 	New       int `title:"其中：新增"`
 	Effective int `title:"其中：有效"`
 }
@@ -145,9 +143,7 @@ func demo() {
 
 ```go
 type RegisterTable struct {
-    xlsx.T `asPlaceholder:"true"`
-
-	ContactName  string    // 联系人
+	ContactName  string    `asPlaceholder:"true"` // 联系人
 	Mobile       string    // 手机
 	Landline     string    // 座机
 	RegisterDate time.Time // 登记日期
@@ -188,9 +184,7 @@ func demo() {
 
 ```go
 type RegisterTable struct {
-    xlsx.T `asPlaceholder:"true"`
-
-	ContactName  string    // 联系人
+	ContactName  string    `asPlaceholder:"true"` // 联系人
 	Mobile       string    // 手机
 	Landline     string    // 座机
 	RegisterDate time.Time // 登记日期

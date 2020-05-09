@@ -16,9 +16,6 @@ import (
 	"github.com/unidoc/unioffice/spreadsheet"
 )
 
-// T just for tag for convenience to declare some tags for the whole structure.
-type T struct{}
-
 // Xlsx is the structure for xlsx processing.
 type Xlsx struct {
 	tmplWorkbook, workbook  *spreadsheet.Workbook
@@ -87,7 +84,7 @@ func makeRun(beans interface{}) *run {
 		r.beanType = r.beanType.Elem()
 	}
 
-	r.collectTtags()
+	r.collectTags()
 	r.collectExportableFields()
 
 	return r
@@ -97,13 +94,12 @@ func (r *run) isEmptySlice() bool {
 	return r.isSlice && r.beanValue.Len() == 0
 }
 
-func (r *run) collectTtags() {
+func (r *run) collectTags() {
 	r.ttags = make([]reflect.StructTag, 0)
 
 	for i := 0; i < r.beanType.NumField(); i++ {
-		if f := r.beanType.Field(i); f.Type == tType {
-			r.ttags = append(r.ttags, f.Tag)
-		}
+		f := r.beanType.Field(i)
+		r.ttags = append(r.ttags, f.Tag)
 	}
 }
 
@@ -124,11 +120,9 @@ func (r *run) collectExportableFields() {
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
 
-		if f.PkgPath != "" || f.Type == tType {
-			continue
+		if f.PkgPath == "" {
+			r.fields = append(r.fields, f)
 		}
-
-		r.fields = append(r.fields, f)
 	}
 }
 
@@ -687,7 +681,6 @@ func (x *Xlsx) readPlaceholderValues() map[string]string {
 
 // nolint gochecknoglobals
 var (
-	tType    = reflect.TypeOf((*T)(nil)).Elem()
 	timeType = reflect.TypeOf((*time.Time)(nil)).Elem()
 )
 

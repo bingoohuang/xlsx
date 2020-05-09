@@ -86,17 +86,13 @@ func ExampleWithTemplate() {
 }
 
 type memberStat struct {
-	xlsx.T `sheet:"会员"`
-
-	Total     int `title:"会员总数"`
+	Total     int `title:"会员总数" sheet:"会员"`
 	New       int `title:"其中：新增"`
 	Effective int `title:"其中：有效"`
 }
 
 type schedule struct {
-	xlsx.T `sheet:"排期"`
-
-	Day                time.Time `title:"日期" format:"yyyy-MM-dd"`
+	Day                time.Time `title:"日期" format:"yyyy-MM-dd" sheet:"排期"`
 	Num                int       `title:"排期数"`
 	Subscribes         int       `title:"订课数"`
 	PublicSubscribes   int       `title:"其中：小班课"`
@@ -104,9 +100,7 @@ type schedule struct {
 }
 
 type orderStat struct {
-	xlsx.T `sheet:"订课情况"`
-
-	Day   time.Time `title:"订单日期" format:"yyyy-MM-dd"`
+	Day   time.Time `title:"订单日期" format:"yyyy-MM-dd" sheet:"订课情况"`
 	Time  int       `title:"人次"`
 	Heads int       `title:"人数"`
 }
@@ -186,9 +180,7 @@ func startOfDay(t time.Time) time.Time {
 }
 
 type memberStat2 struct {
-	xlsx.T `sheet:"会员"`
-
-	Area      string `title:"区域" dataValidation:"Validation!A1:A3"`
+	Area      string `title:"区域" dataValidation:"Validation!A1:A3" sheet:"会员"`
 	Total     int    `title:"会员总数"`
 	New       int    `title:"其中：新增"`
 	Effective int    `title:"其中：有效"`
@@ -210,9 +202,7 @@ func TestValidationTmpl(t *testing.T) {
 }
 
 type memberStat22 struct {
-	xlsx.T `sheet:"会员"`
-
-	Area      string `title:"区域" dataValidation:"A22,B22,C22"`
+	Area      string `title:"区域" dataValidation:"A22,B22,C22" sheet:"会员"`
 	Total     int    `title:"会员总数"`
 	New       int    `title:"其中：新增"`
 	Effective int    `title:"其中：有效"`
@@ -236,9 +226,7 @@ func TestValidation(t *testing.T) {
 }
 
 type memberStat23 struct {
-	xlsx.T `sheet:"会员"`
-
-	Area      string `title:"区域" dataValidation:"areas"`
+	Area      string `title:"区域" dataValidation:"areas" sheet:"会员"`
 	Total     int    `title:"会员总数"`
 	New       int    `title:"其中：新增"`
 	Effective int    `title:"其中：有效"`
@@ -262,9 +250,7 @@ func TestValidationWith(t *testing.T) {
 }
 
 type RegisterTable struct {
-	xlsx.T `asPlaceholder:"true"`
-
-	ContactName  string    // 联系人
+	ContactName  string    `asPlaceholder:"true"` // 联系人
 	Mobile       string    // 手机
 	Landline     string    // 座机
 	RegisterDate time.Time `format:"yyyy-MM-dd"`  // 登记日期

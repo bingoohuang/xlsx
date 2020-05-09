@@ -9,9 +9,7 @@ import (
 
 // RegisterTable 注册登记表信息
 type RegisterTable struct {
-	xlsx.T `asPlaceholder:"true"`
-
-	ContactName  string    // 联系人
+	ContactName  string    `asPlaceholder:"true"` // 联系人
 	Mobile       string    // 手机
 	Landline     string    // 座机
 	RegisterDate time.Time `format:"yyyy-MM-dd"`  // 登记日期

@@ -4,11 +4,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/bingoohuang/xlsx/pkg/cast"
 	"io"
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/bingoohuang/xlsx/pkg/cast"
 
 	"github.com/araddon/dateparse"
 
@@ -138,9 +139,26 @@ func (r *run) forRead() bool {
 	return r.isPtr && (r.isSlice || r.beanType.Kind() == reflect.Struct)
 }
 
-func (r *run) AsPlaceholderTtag() bool {
-	v := r.FindTtag("asPlaceholder")
-	return v == "true" || v == "on" || v == "yes" || v == "1"
+func (r *run) asPlaceholder() bool {
+	return ParseBool(r.FindTtag("asPlaceholder"), false)
+}
+
+func (r *run) ignoreEmptyRows() bool {
+	return ParseBool(r.FindTtag("ignoreEmptyRows"), true)
+}
+
+// ParseBool parses the v as  a boolean  when it is any of true,  on, yes or 1.
+func ParseBool(v string, defaultValue bool) bool {
+	if v == "" {
+		return defaultValue
+	}
+
+	switch strings.ToLower(v) {
+	case "true", "t", "on", "yes", "y", "1":
+		return true
+	default:
+		return false
+	}
 }
 
 // Write Writes beans to the underlying xlsx.
@@ -152,7 +170,7 @@ func (x *Xlsx) Write(beans interface{}) error {
 
 	x.currentSheet = x.createSheet(x.workbook, r, false)
 
-	if r.AsPlaceholderTtag() {
+	if r.asPlaceholder() {
 		x.writePlaceholderTemplate(r.fields, collectPlaceholders(x.currentSheet), r.getSingleBean())
 
 		return nil
@@ -305,7 +323,7 @@ func (x *Xlsx) Read(slicePtr interface{}) error {
 	x.tmplSheet = x.createSheet(x.tmplWorkbook, r, true)
 	x.currentSheet = x.createSheet(x.workbook, r, true)
 
-	if r.AsPlaceholderTtag() {
+	if r.asPlaceholder() {
 		err := x.writePlaceholderToBean(r)
 		if err != nil {
 			return err
@@ -314,11 +332,13 @@ func (x *Xlsx) Read(slicePtr interface{}) error {
 		return nil
 	}
 
+	ignoreEmptyRows := r.ignoreEmptyRows()
+
 	titles, _ := collectTitles(r.fields)
 	location := x.locateTitleRow(r.fields, titles)
 
 	if location.isValid() {
-		slice, err := x.readRows(r.beanType, location)
+		slice, err := x.readRows(r.beanType, location, ignoreEmptyRows)
 		if err != nil {
 			return err
 		}
@@ -358,28 +378,55 @@ func (x *Xlsx) writePlaceholderToBean(r *run) error {
 	return nil
 }
 
-func (x *Xlsx) readRows(beanType reflect.Type, l templateLocation) (reflect.Value, error) {
+func (x *Xlsx) readRows(beanType reflect.Type, l templateLocation, ignoreEmptyRows bool) (reflect.Value, error) {
 	slice := reflect.MakeSlice(reflect.SliceOf(beanType), 0, len(l.templateRows))
 
 	for _, row := range l.templateRows {
-		rowBean, err := x.createRowBean(beanType, l, row)
+		rowBean, err := x.createRowBean(beanType, l, row, ignoreEmptyRows)
 		if err != nil {
 			return reflect.Value{}, err
 		}
 
-		slice = reflect.Append(slice, rowBean)
+		if rowBean.IsValid() {
+			slice = reflect.Append(slice, rowBean)
+		}
 	}
 
 	return slice, nil
 }
 
-func (x *Xlsx) createRowBean(beanType reflect.Type, l templateLocation, row spreadsheet.Row) (reflect.Value, error) {
-	rowBean := reflect.New(beanType).Elem()
+func (x *Xlsx) createRowBean(beanType reflect.Type, l templateLocation,
+	row spreadsheet.Row, ignoreEmptyRows bool) (reflect.Value, error) {
 
-	for _, cell := range l.templateCells {
+	type templateCellValue struct {
+		templateCell
+		value string
+	}
+
+	values := make([]templateCellValue, len(l.templateCells))
+	emptyCells := 0
+
+	for i, cell := range l.templateCells {
 		c := row.Cell(cell.cellColumn)
 
-		if err := setFieldValue(rowBean, cell.structField, c.GetString()); err != nil {
+		s := strings.TrimSpace(c.GetString())
+		values[i] = templateCellValue{
+			templateCell: cell,
+			value:        s,
+		}
+		if ignoreEmptyRows && s == "" {
+			emptyCells++
+		}
+	}
+
+	if emptyCells == len(l.templateCells) {
+		return reflect.Value{}, nil
+	}
+
+	rowBean := reflect.New(beanType).Elem()
+
+	for _, cell := range values {
+		if err := setFieldValue(rowBean, cell.structField, cell.value); err != nil {
 			return reflect.Value{}, err
 		}
 	}

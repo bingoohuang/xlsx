@@ -378,7 +378,6 @@ func castUint32(s string, asPtr bool) (reflect.Value, error) {
 
 func castUint64(s string, asPtr bool) (reflect.Value, error) {
 	v, err := strconv.ParseUint(s, 10, 64)
-
 	if err != nil {
 		return invalidValue, err
 	}

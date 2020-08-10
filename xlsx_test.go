@@ -8,12 +8,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bingoohuang/gou/file"
-
 	"github.com/bingoohuang/xlsx"
 
 	"github.com/stretchr/testify/assert"
 )
+
+// ReadBytes reads bytes from the file.
+func ReadBytes(filename string) []byte {
+	b, _ := ioutil.ReadFile(filename)
+	return b
+}
 
 func ExampleXlsx() {
 	type (
@@ -38,7 +42,7 @@ func ExampleXlsx() {
 
 	var r Rsp
 
-	err := json.Unmarshal(file.ReadBytes("testdata/hostinfos.json"), &r)
+	err := json.Unmarshal(ReadBytes("testdata/hostinfos.json"), &r)
 	fmt.Println("Unmarshal", err == nil)
 
 	x, _ := xlsx.New(xlsx.WithTemplate("testdata/hostinfos_template.xlsx"))

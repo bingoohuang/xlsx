@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/bingoohuang/xlsx/pkg/cast"
 	"io"
 	"reflect"
 	"strings"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/araddon/dateparse"
 
-	"github.com/bingoohuang/gor"
 	"github.com/sirupsen/logrus"
 	"github.com/unidoc/unioffice/spreadsheet"
 )
@@ -401,7 +401,7 @@ func setFieldValue(rowBean reflect.Value, sf reflect.StructField, s string) erro
 		return nil
 	}
 
-	v, err := gor.CastAny(s, sf.Type)
+	v, err := cast.CastAny(s, sf.Type)
 
 	if err != nil && sf.Tag.Get("omiterr") != "true" {
 		return err

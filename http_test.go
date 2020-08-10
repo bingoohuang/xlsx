@@ -1,10 +1,15 @@
 package xlsx_test
 
 import (
+	"context"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
+
+	"github.com/bingoohuang/xlsx/pkg/upload"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/bingoohuang/xlsx"
 )
@@ -24,16 +29,9 @@ func TestUpload(t *testing.T) {
 
 	defer ts.Close()
 
-	f, _ := os.Open("testdata/template.xlsx")
-	defer f.Close()
-
-	//var buf bytes.Buffer
-	//df := &man.DownloadFile{Writer: &buf}
-	//df := &man.DownloadFile{Writer: ioutil.Discard}
-	//postMan := func() (p Poster) { man.New(&p); return }()
-	//
-	//postMan.UpDown(man.URL(ts.URL), man.MakeFile("file", "upload.xlsx", f), df)
-	//
-	//// ioutil.WriteFile("testdata/dl.xlsx", buf.Bytes(), 0644)
-	//assert.Equal(t, "file.xlsx", df.Filename)
+	buf, fn, err := upload.Upload(context.Background(),
+		ts.URL, "testdata/template.xlsx", "file", nil)
+	assert.Nil(t, err)
+	_ = ioutil.WriteFile("testdata/dl.xlsx", buf.Bytes(), 0644)
+	assert.Equal(t, "file.xlsx", fn)
 }

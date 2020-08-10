@@ -120,7 +120,7 @@ func ParsePlaceholder(content string) PlaceholderValue {
 
 		parts = append(parts, PlaceholderPart{Part: pl, Var: varName})
 
-		pos += lp + rp + 2 // nolint gomnd
+		pos += lp + rp + 2 // nolint:gomnd
 	}
 
 	return PlaceholderValue{Content: content, Parts: parts}

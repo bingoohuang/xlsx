@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// RegisterTable 注册登记表信息
+// RegisterTable 注册登记表信息.
 type RegisterTable struct {
 	ContactName  string    `asPlaceholder:"true"` // 联系人
 	Mobile       string    // 手机

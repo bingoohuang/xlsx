@@ -301,3 +301,36 @@ func TestPlaceholder(t *testing.T) {
 	assert.Equal(t, src, v)
 	assert.NotNil(t, x2.Read(v))
 }
+
+func TestIgnoreEmptyRows(t *testing.T) {
+	type sch1 struct {
+		Day                time.Time `title:"日期" format:"yyyy-MM-dd" sheet:"排期"`
+		Num                int       `title:"排期数"`
+		Subscribes         int       `title:"订课数"`
+		PublicSubscribes   int       `title:"其中：小班课"`
+		PrivatesSubscribes int       `title:"其中：私教课"`
+	}
+
+	x, err := xlsx.New(xlsx.WithExcel("testdata/template.xlsx"))
+	assert.Nil(t, err)
+
+	var schs1 []sch1
+
+	err = x.Read(&schs1)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(schs1))
+
+	type sch2 struct {
+		Day                time.Time `title:"日期" format:"yyyy-MM-dd" sheet:"排期" ignoreEmptyRows:"false"`
+		Num                int       `title:"排期数"`
+		Subscribes         int       `title:"订课数"`
+		PublicSubscribes   int       `title:"其中：小班课"`
+		PrivatesSubscribes int       `title:"其中：私教课"`
+	}
+
+	var schs2 []sch2
+
+	err = x.Read(&schs2)
+	assert.Nil(t, err)
+	assert.Equal(t, 102, len(schs2))
+}

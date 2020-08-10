@@ -1,14 +1,15 @@
-package cast
+package cast_test
 
 import (
 	"reflect"
 	"testing"
 	"time"
 
+	. "github.com/bingoohuang/xlsx/pkg/cast"
+
 	"github.com/stretchr/testify/assert"
 )
 
-// nolint:gomnd
 func TestPopulate(t *testing.T) {
 	prop := map[string]string{
 		"key1":        "value1",
@@ -148,7 +149,7 @@ func TestCastAny(t *testing.T) {
 		{
 			name:    "bad bool",
 			args:    args{"bad", reflect.TypeOf(false)},
-			want:    invalidValue,
+			want:    InvalidValue,
 			wantErr: true,
 		},
 	}
@@ -163,7 +164,7 @@ func TestCastAny(t *testing.T) {
 				return
 			}
 			if err != nil {
-				if got != invalidValue {
+				if got != InvalidValue {
 					t.Errorf("CastAny() got = %v, want %v", got, tt.want)
 				}
 

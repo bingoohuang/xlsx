@@ -20,7 +20,7 @@ func WithUpload(r *http.Request, filenameKey string) OptionFn {
 	return func(o *Option) { o.Workbook = wb }
 }
 
-// nolint gomnd
+// nolint:gomnd
 func parseUploadFile(r *http.Request, filenameKey string) (*spreadsheet.Workbook, error) {
 	_ = r.ParseMultipartForm(32 << 20) // limit your max input length!
 

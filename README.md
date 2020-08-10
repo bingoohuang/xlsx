@@ -212,6 +212,11 @@ func demo() error {
 }
 ```
 
+## Options
+
+1. `asPlaceholder:"true"` 使用“占位符模板”excel文件，从“占位符模板”里获取占位符的位置，用这个位置信息，去实际“待读取数据”的excel文件中提取数据。
+1. `ignoreEmptyRows:"false"` 读取excel时，是否忽略全空行(包括空白)，默认true
+
 ## Resources
 
 1. [awesome-go microsoft-excel](https://github.com/avelino/awesome-go#microsoft-excel)

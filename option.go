@@ -62,6 +62,9 @@ func WithExcel(excel interface{}) OptionFn {
 	return func(o *Option) { o.Workbook = wb }
 }
 
+// UnknownExcelError defines the the unknown excel file format error.
+var UnknownExcelError = fmt.Errorf("unknown excel file format")
+
 func parseExcel(f interface{}) (wb *spreadsheet.Workbook, err error) {
 	var bs []byte
 
@@ -77,7 +80,7 @@ func parseExcel(f interface{}) (wb *spreadsheet.Workbook, err error) {
 
 		return spreadsheet.Read(bytes.NewReader(bs), int64(len(bs)))
 	default:
-		return nil, fmt.Errorf("unknown excel file format")
+		return nil, UnknownExcelError
 	}
 }
 

@@ -134,7 +134,7 @@ type Caster func(s string, asPtr bool) (reflect.Value, error)
 
 // nolint:gochecknoglobals
 var (
-	invalidValue = reflect.Value{}
+	InvalidValue = reflect.Value{}
 )
 
 // casters defines default for basic types.
@@ -168,13 +168,13 @@ func CastAny(s string, t reflect.Type) (reflect.Value, error) {
 		return caster(s, asPtr)
 	}
 
-	return invalidValue, errors.New("casting not supported")
+	return InvalidValue, errors.New("casting not supported")
 }
 
 func castTimeDuration(s string, asPtr bool) (reflect.Value, error) {
 	d, err := time.ParseDuration(s)
-	if err != nil {
-		return invalidValue, err
+	if err != nil && s != "" {
+		return InvalidValue, err
 	}
 
 	if asPtr {
@@ -185,17 +185,15 @@ func castTimeDuration(s string, asPtr bool) (reflect.Value, error) {
 }
 
 func castBool(s string, asPtr bool) (reflect.Value, error) {
-	v, err := strconv.ParseBool(s)
-	if err != nil {
-		switch strings.ToLower(s) {
-		case "yes", "ok", "1", "on":
-			v = true
-			err = nil
-		}
-	}
+	v := false
 
-	if err != nil {
-		return invalidValue, err
+	switch strings.ToLower(s) {
+	case "yes", "ok", "1", "on", "y", "t", "true":
+		v = true
+	case "no", "0", "off", "n", "f", "false":
+		v = false
+	default:
+		return InvalidValue, fmt.Errorf("bad bool value: %s", s)
 	}
 
 	if asPtr {
@@ -207,8 +205,8 @@ func castBool(s string, asPtr bool) (reflect.Value, error) {
 
 func castFloat32(s string, asPtr bool) (reflect.Value, error) {
 	v, err := strconv.ParseFloat(s, 32)
-	if err != nil {
-		return invalidValue, err
+	if err != nil && s != "" {
+		return InvalidValue, err
 	}
 
 	vv := float32(v)
@@ -222,8 +220,8 @@ func castFloat32(s string, asPtr bool) (reflect.Value, error) {
 
 func castFloat64(s string, asPtr bool) (reflect.Value, error) {
 	v, err := strconv.ParseFloat(s, 64)
-	if err != nil {
-		return invalidValue, err
+	if err != nil && s != "" {
+		return InvalidValue, err
 	}
 
 	vv := v
@@ -237,8 +235,8 @@ func castFloat64(s string, asPtr bool) (reflect.Value, error) {
 
 func castInt(s string, asPtr bool) (reflect.Value, error) {
 	v, err := strconv.ParseInt(s, 10, 0)
-	if err != nil {
-		return invalidValue, err
+	if err != nil && s != "" {
+		return InvalidValue, err
 	}
 
 	vv := int(v)
@@ -252,8 +250,8 @@ func castInt(s string, asPtr bool) (reflect.Value, error) {
 
 func castInt8(s string, asPtr bool) (reflect.Value, error) {
 	v, err := strconv.ParseInt(s, 10, 8)
-	if err != nil {
-		return invalidValue, err
+	if err != nil && s != "" {
+		return InvalidValue, err
 	}
 
 	vv := int8(v)
@@ -267,8 +265,8 @@ func castInt8(s string, asPtr bool) (reflect.Value, error) {
 
 func castInt16(s string, asPtr bool) (reflect.Value, error) {
 	v, err := strconv.ParseInt(s, 10, 16)
-	if err != nil {
-		return invalidValue, err
+	if err != nil && s != "" {
+		return InvalidValue, err
 	}
 
 	vv := int16(v)
@@ -282,8 +280,8 @@ func castInt16(s string, asPtr bool) (reflect.Value, error) {
 
 func castInt32(s string, asPtr bool) (reflect.Value, error) {
 	v, err := strconv.ParseInt(s, 10, 32)
-	if err != nil {
-		return invalidValue, err
+	if err != nil && s != "" {
+		return InvalidValue, err
 	}
 
 	vv := int32(v)
@@ -297,8 +295,8 @@ func castInt32(s string, asPtr bool) (reflect.Value, error) {
 
 func castInt64(s string, asPtr bool) (reflect.Value, error) {
 	v, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		return invalidValue, err
+	if err != nil && s != "" {
+		return InvalidValue, err
 	}
 
 	if asPtr {
@@ -318,8 +316,8 @@ func castString(s string, asPtr bool) (reflect.Value, error) {
 
 func castUint(s string, asPtr bool) (reflect.Value, error) {
 	v, err := strconv.ParseUint(s, 10, 0)
-	if err != nil {
-		return invalidValue, err
+	if err != nil && s != "" {
+		return InvalidValue, err
 	}
 
 	vv := uint(v)
@@ -333,8 +331,8 @@ func castUint(s string, asPtr bool) (reflect.Value, error) {
 
 func castUint8(s string, asPtr bool) (reflect.Value, error) {
 	v, err := strconv.ParseUint(s, 10, 8)
-	if err != nil {
-		return invalidValue, err
+	if err != nil && s != "" {
+		return InvalidValue, err
 	}
 
 	vv := uint8(v)
@@ -348,8 +346,8 @@ func castUint8(s string, asPtr bool) (reflect.Value, error) {
 
 func castUint16(s string, asPtr bool) (reflect.Value, error) {
 	v, err := strconv.ParseUint(s, 10, 16)
-	if err != nil {
-		return invalidValue, err
+	if err != nil && s != "" {
+		return InvalidValue, err
 	}
 
 	vv := uint16(v)
@@ -363,8 +361,8 @@ func castUint16(s string, asPtr bool) (reflect.Value, error) {
 
 func castUint32(s string, asPtr bool) (reflect.Value, error) {
 	v, err := strconv.ParseUint(s, 10, 32)
-	if err != nil {
-		return invalidValue, err
+	if err != nil && s != "" {
+		return InvalidValue, err
 	}
 
 	vv := uint32(v)
@@ -378,8 +376,8 @@ func castUint32(s string, asPtr bool) (reflect.Value, error) {
 
 func castUint64(s string, asPtr bool) (reflect.Value, error) {
 	v, err := strconv.ParseUint(s, 10, 64)
-	if err != nil {
-		return invalidValue, err
+	if err != nil && s != "" {
+		return InvalidValue, err
 	}
 
 	if asPtr {

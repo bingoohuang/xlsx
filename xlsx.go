@@ -252,7 +252,7 @@ func collectPlaceholders(sheet spreadsheet.Sheet) map[string]PlaceholderValue {
 	return placeholders
 }
 
-// nolint gomnd
+// nolint:gomnd
 func (x *Xlsx) createDataValidations(fields []reflect.StructField, sheet spreadsheet.Sheet) error {
 	row0Cells := sheet.Rows()[0].Cells()
 
@@ -271,7 +271,6 @@ func (x *Xlsx) createDataValidations(fields []reflect.StructField, sheet spreads
 func (x *Xlsx) createTemplateDataValidations(l templateLocation, sheet spreadsheet.Sheet) error {
 	for _, tc := range l.templateCells {
 		dv := tc.structField.Tag.Get("dataValidation")
-		// nolint gomnd
 		if err := x.createColumnDataValidation(l.titledRowNumber+1, sheet, dv, tc.cellColumn); err != nil {
 			return err
 		}
@@ -397,7 +396,6 @@ func (x *Xlsx) readRows(beanType reflect.Type, l templateLocation, ignoreEmptyRo
 
 func (x *Xlsx) createRowBean(beanType reflect.Type, l templateLocation,
 	row spreadsheet.Row, ignoreEmptyRows bool) (reflect.Value, error) {
-
 	type templateCellValue struct {
 		templateCell
 		value string
@@ -414,6 +412,7 @@ func (x *Xlsx) createRowBean(beanType reflect.Type, l templateLocation,
 			templateCell: cell,
 			value:        s,
 		}
+
 		if ignoreEmptyRows && s == "" {
 			emptyCells++
 		}
@@ -726,7 +725,7 @@ func (x *Xlsx) readPlaceholderValues() map[string]string {
 	return plVars
 }
 
-// nolint gochecknoglobals
+// nolint:gochecknoglobals
 var (
 	timeType = reflect.TypeOf((*time.Time)(nil)).Elem()
 )
@@ -765,6 +764,10 @@ func formatTime(tag reflect.StructTag, t time.Time) string {
 }
 
 func parseTime(tag reflect.StructTag, s string) (time.Time, error) {
+	if s == "" {
+		return time.Time{}, nil
+	}
+
 	if f := tag.Get("format"); f != "" {
 		return time.ParseInLocation(ParseJavaTimeFormat(f), s, time.Local)
 	}

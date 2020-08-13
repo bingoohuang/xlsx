@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// nolint:funlen
 func TestPopulate(t *testing.T) {
 	prop := map[string]string{
 		"key1":        "value1",
@@ -158,21 +159,21 @@ func TestCastAny(t *testing.T) {
 		tt := tt
 
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := CastAny(tt.args.s, tt.args.t)
+			got, err := ToAny(tt.args.s, tt.args.t)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("CastAny() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("ToAny() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if err != nil {
 				if got != InvalidValue {
-					t.Errorf("CastAny() got = %v, want %v", got, tt.want)
+					t.Errorf("ToAny() got = %v, want %v", got, tt.want)
 				}
 
 				return
 			}
 
 			if !reflect.DeepEqual(got.Interface(), tt.want.Interface()) {
-				t.Errorf("CastAny() got = %v, want %v", got, tt.want)
+				t.Errorf("ToAny() got = %v, want %v", got, tt.want)
 			}
 		})
 	}

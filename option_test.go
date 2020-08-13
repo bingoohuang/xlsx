@@ -10,8 +10,8 @@ import (
 
 type errReader int
 
-func (errReader) Read(p []byte) (n int, err error) {
-	return 0, errors.New("test error")
+func (errReader) Read(_ []byte) (n int, err error) {
+	return 0, errors.New("test error") // nolint:goerr113
 }
 
 func TestWithExcel(t *testing.T) {

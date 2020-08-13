@@ -32,6 +32,8 @@ func TestUpload(t *testing.T) {
 	buf, fn, err := upload.Upload(context.Background(),
 		ts.URL, "testdata/template.xlsx", "file", nil)
 	assert.Nil(t, err)
-	_ = ioutil.WriteFile("testdata/dl.xlsx", buf.Bytes(), 0644)
+
+	_ = ioutil.WriteFile("testdata/dl.xlsx", buf.Bytes(), 0600)
+
 	assert.Equal(t, "file.xlsx", fn)
 }

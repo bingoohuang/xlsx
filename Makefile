@@ -7,11 +7,20 @@ sec:
 	@gosec ./...
 	@echo "[OK] Go security check was completed!"
 
+fmt:
+	gofumports -w .
+	gofumpt -w .
+	gofmt -s -w .
+	go mod tidy
+	go fmt ./...
+	revive .
+	goimports -w .
+	golangci-lint run --enable-all
+
 init:
 	export GOPROXY=https://goproxy.cn
 
-default: init
-	gofmt -s -w .&&go mod tidy&&go fmt ./...&&revive .&&goimports -w .&&golangci-lint run --enable-all&&go install -ldflags="-s -w" ./...
+default: install
 
 install: init
 	go install -ldflags="-s -w" ./...

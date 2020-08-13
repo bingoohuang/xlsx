@@ -2,7 +2,6 @@ package xlsx
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"reflect"
@@ -297,7 +296,7 @@ func (x *Xlsx) createColumnDataValidation(startRowNum int, sheet spreadsheet.She
 		vsheet := x.findSheet(x.workbook, dvSheetName)
 
 		if !vsheet.IsValid() {
-			return fmt.Errorf("unable to find sheet with name %s", dvSheetName)
+			return fmt.Errorf("unable to find sheet with name %s", dvSheetName) // nolint:goerr113
 		}
 
 		dvList.SetRange(vsheet.RangeReference(validateRange))
@@ -312,6 +311,8 @@ func (x *Xlsx) createColumnDataValidation(startRowNum int, sheet spreadsheet.She
 	return nil
 }
 
+// Read reads the excel rows to slice.
+// nolint:goerr113
 func (x *Xlsx) Read(slicePtr interface{}) error {
 	r := makeRun(slicePtr)
 
@@ -354,7 +355,7 @@ func (x *Xlsx) writePlaceholderToBean(r *run) error {
 
 	for _, f := range r.fields {
 		if v := f.Tag.Get("placeholderCell"); v != "" {
-			vs := x.currentSheet.Cell(v).GetString()
+			vs := GetCellString(x.workbook, x.currentSheet.Cell(v))
 			if err := setFieldValue(vv, f, vs); err != nil {
 				return err
 			}
@@ -406,8 +407,7 @@ func (x *Xlsx) createRowBean(beanType reflect.Type, l templateLocation,
 
 	for i, cell := range l.templateCells {
 		c := row.Cell(cell.cellColumn)
-
-		s := strings.TrimSpace(c.GetString())
+		s := strings.TrimSpace(GetCellString(x.workbook, c))
 		values[i] = templateCellValue{
 			templateCell: cell,
 			value:        s,
@@ -447,7 +447,7 @@ func setFieldValue(rowBean reflect.Value, sf reflect.StructField, s string) erro
 		return nil
 	}
 
-	v, err := cast.CastAny(s, sf.Type)
+	v, err := cast.ToAny(s, sf.Type)
 
 	if err != nil && sf.Tag.Get("omiterr") != "true" {
 		return err
@@ -590,7 +590,7 @@ func (x *Xlsx) locateTitleRow(fields []reflect.StructField, titles []string) tem
 	}
 
 	rows := x.currentSheet.Rows()
-	titledRowNumber, templateCells := x.findTemplateTitledRow(fields, titles, rows)
+	titledRowNumber, templateCells := x.findTitledRow(fields, titles, rows)
 	templateRows := x.findTemplateRows(titledRowNumber, rows)
 
 	return templateLocation{
@@ -600,14 +600,14 @@ func (x *Xlsx) locateTitleRow(fields []reflect.StructField, titles []string) tem
 	}
 }
 
-func (x *Xlsx) findTemplateTitledRow(fields []reflect.StructField,
+func (x *Xlsx) findTitledRow(fields []reflect.StructField,
 	titles []string, rows []spreadsheet.Row) (int, []templateCell) {
 	titledRowNumber := -1
 	templateCells := make([]templateCell, 0, len(fields))
 
 	for _, row := range rows {
 		for _, cell := range row.Cells() {
-			cellString := cell.GetString()
+			cellString := GetCellString(x.workbook, cell)
 
 			for i, title := range titles {
 				if !strings.Contains(cellString, title) {
@@ -711,7 +711,7 @@ func (x *Xlsx) readPlaceholderValues() map[string]string {
 	plVars := make(map[string]string)
 
 	for k, v := range plMap {
-		cellValue := x.currentSheet.Cell(k).GetString()
+		cellValue := GetCellString(x.workbook, x.currentSheet.Cell(k))
 
 		if vars, ok := v.ParseVars(cellValue); ok {
 			for vk, vv := range vars {
@@ -773,15 +773,4 @@ func parseTime(tag reflect.StructTag, s string) (time.Time, error) {
 	}
 
 	return dateparse.ParseLocal(s)
-}
-
-type flagNoopValue struct{}
-
-func (*flagNoopValue) String() string   { return "noop" }
-func (*flagNoopValue) Set(string) error { return nil }
-
-func hackTestV() {
-	if flag.Lookup("test.v") == nil {
-		flag.CommandLine.Var(&flagNoopValue{}, "test.v", "test.v")
-	}
 }

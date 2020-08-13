@@ -340,8 +340,22 @@ type DataImport struct {
 	Value string `title:"value"`
 }
 
-func Test埋点导入(t *testing.T) {
+func TestWangMengPdf(t *testing.T) {
+	x, err := xlsx.New(xlsx.WithExcel("testdata/埋点导入模板-pdf.xlsx"))
+	assert.Nil(t, err)
+
+	var dataImports []DataImport
+	err = x.Read(&dataImports)
+	assert.Nil(t, err)
+
+	for i, v := range dataImports {
+		fmt.Printf("%d: %+v\n", i+1, v)
+	}
+}
+
+func TestMaiDianDaoRu(t *testing.T) {
 	x, err := xlsx.New(xlsx.WithExcel("testdata/埋点导入模板-813.xlsx"))
+	assert.Nil(t, err)
 
 	var dataImports []DataImport
 

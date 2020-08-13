@@ -50,6 +50,7 @@ func TryAnyCase(name string, getter func(string) (interface{}, bool)) (interface
 }
 
 // PopulateStruct populates the properties to the structure's field.
+// nolint:goerr113
 func PopulateStruct(b interface{}, tagName string, getter func(filedName, tagValue string) (interface{}, bool)) error {
 	v := reflect.ValueOf(b)
 	vt := v.Type()
@@ -92,7 +93,7 @@ func PopulateStruct(b interface{}, tagName string, getter func(filedName, tagVal
 		}
 
 		if vs, ok := v.(string); ok {
-			vv, err := CastAny(vs, structField.Type)
+			vv, err := ToAny(vs, structField.Type)
 			if err != nil {
 				return err
 			}
@@ -157,8 +158,8 @@ var casters = map[reflect.Type]Caster{
 	reflect.TypeOf(time.Duration(0)): castTimeDuration,
 }
 
-// CastAny cast string a any type.
-func CastAny(s string, t reflect.Type) (reflect.Value, error) {
+// ToAny cast string a any type.
+func ToAny(s string, t reflect.Type) (reflect.Value, error) {
 	asPtr := t.Kind() == reflect.Ptr
 	if asPtr {
 		t = t.Elem()
@@ -168,7 +169,7 @@ func CastAny(s string, t reflect.Type) (reflect.Value, error) {
 		return caster(s, asPtr)
 	}
 
-	return InvalidValue, errors.New("casting not supported")
+	return InvalidValue, errors.New("casting not supported") // nolint:goerr113
 }
 
 func castTimeDuration(s string, asPtr bool) (reflect.Value, error) {
@@ -184,6 +185,7 @@ func castTimeDuration(s string, asPtr bool) (reflect.Value, error) {
 	return reflect.ValueOf(d), nil
 }
 
+// nolint:goerr113
 func castBool(s string, asPtr bool) (reflect.Value, error) {
 	v := false
 

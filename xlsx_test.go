@@ -334,3 +334,24 @@ func TestIgnoreEmptyRows(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, 102, len(schs2))
 }
+
+type DataImport struct {
+	Key   string `title:"key"`
+	Value string `title:"value"`
+}
+
+func Test埋点导入(t *testing.T) {
+	x, err := xlsx.New(xlsx.WithExcel("testdata/埋点导入模板-813.xlsx"))
+
+	var dataImports []DataImport
+
+	err = x.Read(&dataImports)
+	assert.Nil(t, err)
+	assert.Equal(t, []DataImport{
+		{Key: "签名验证业务#PKCS7验签(带原文)#verifySignedDataByP7Attach", Value: "数据验签带原文"},
+		{Key: "签名验证业务#PKCS7签名(不带原文)#signDataByP7Attach", Value: "数据签名不带原文"},
+		{Key: "签名验证业务#PKCS7验签(不带原文)#verifySignedDataByP7Detach", Value: "数据验签不带原文"},
+		{Key: "签名验证业务#PKCS7签名(不带原文)#signHashedDataPkcs7_detach", Value: "Hash数据签名不带原文"},
+		{Key: "签名验证业务#PKCS7验签(不带原文)#signHashedDataPkcs7_detach", Value: "Hash数据验签不带原文"},
+	}, dataImports)
+}

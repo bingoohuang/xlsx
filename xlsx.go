@@ -175,11 +175,10 @@ func (x *Xlsx) Write(beans interface{}) error {
 		return nil
 	}
 
-	titles, customizedTitle := collectTitles(r.fields)
-	location := x.locateTitleRow(r.fields, titles)
-	customizedTitle = customizedTitle && !location.isValid()
+	titles, _ := collectTitles(r.fields)
+	location := x.locateTitleRow(titles)
 
-	if writeTitles := customizedTitle || r.FindTtag("title") != ""; writeTitles {
+	if !location.isValid() {
 		x.writeTitles(r.fields, titles)
 	}
 
@@ -269,8 +268,8 @@ func (x *Xlsx) createDataValidations(fields []reflect.StructField, sheet spreads
 
 func (x *Xlsx) createTemplateDataValidations(l templateLocation, sheet spreadsheet.Sheet) error {
 	for _, tc := range l.templateCells {
-		dv := tc.structField.Tag.Get("dataValidation")
-		if err := x.createColumnDataValidation(l.titledRowNumber+1, sheet, dv, tc.cellColumn); err != nil {
+		dv := tc.StructField.Tag.Get("dataValidation")
+		if err := x.createColumnDataValidation(l.titledRowNum+1, sheet, dv, tc.Column); err != nil {
 			return err
 		}
 	}
@@ -335,7 +334,7 @@ func (x *Xlsx) Read(slicePtr interface{}) error {
 	ignoreEmptyRows := r.ignoreEmptyRows()
 
 	titles, _ := collectTitles(r.fields)
-	location := x.locateTitleRow(r.fields, titles)
+	location := x.locateTitleRow(titles)
 
 	if location.isValid() {
 		slice, err := x.readRows(r.beanType, location, ignoreEmptyRows)
@@ -398,7 +397,7 @@ func (x *Xlsx) readRows(beanType reflect.Type, l templateLocation, ignoreEmptyRo
 func (x *Xlsx) createRowBean(beanType reflect.Type, l templateLocation,
 	row spreadsheet.Row, ignoreEmptyRows bool) (reflect.Value, error) {
 	type templateCellValue struct {
-		templateCell
+		TitleField
 		value string
 	}
 
@@ -406,11 +405,11 @@ func (x *Xlsx) createRowBean(beanType reflect.Type, l templateLocation,
 	emptyCells := 0
 
 	for i, cell := range l.templateCells {
-		c := row.Cell(cell.cellColumn)
+		c := row.Cell(cell.Column)
 		s := GetCellString(c)
 		values[i] = templateCellValue{
-			templateCell: cell,
-			value:        s,
+			TitleField: cell,
+			value:      s,
 		}
 
 		if ignoreEmptyRows && s == "" {
@@ -425,7 +424,7 @@ func (x *Xlsx) createRowBean(beanType reflect.Type, l templateLocation,
 	rowBean := reflect.New(beanType).Elem()
 
 	for _, cell := range values {
-		if err := setFieldValue(rowBean, cell.structField, cell.value); err != nil {
+		if err := setFieldValue(rowBean, cell.StructField, cell.value); err != nil {
 			return reflect.Value{}, err
 		}
 	}
@@ -492,21 +491,35 @@ func (x *Xlsx) createSheet(wb *spreadsheet.Workbook, r *run, readonly bool) spre
 	return wbSheet
 }
 
-func collectTitles(fields []reflect.StructField) ([]string, bool) {
-	titles := make([]string, 0)
-	customizedTitle := false
+type TitleField struct {
+	StructField reflect.StructField
+	Title       string
+	Column      string
+}
+
+func collectTitles(fields []reflect.StructField) ([]TitleField, bool) {
+	titles := make([]TitleField, 0)
+	customizedTitles := make([]TitleField, 0)
 
 	for _, f := range fields {
+		tf := TitleField{
+			StructField: f,
+			Title:       f.Name,
+		}
 		if t := f.Tag.Get("title"); t != "" {
-			customizedTitle = true
-
-			titles = append(titles, t)
+			tf.Title = t
+			customizedTitles = append(customizedTitles, tf)
+			titles = append(titles, tf)
 		} else {
-			titles = append(titles, f.Name)
+			titles = append(titles, tf)
 		}
 	}
 
-	return titles, customizedTitle
+	if len(customizedTitles) > 0 {
+		return customizedTitles, true
+	}
+
+	return titles, false
 }
 
 // SaveToFile writes the workbook out to a file.
@@ -561,56 +574,51 @@ func setCellValue(cell spreadsheet.Cell, field reflect.StructField, value reflec
 	}
 }
 
-func (x *Xlsx) writeTitles(fields []reflect.StructField, titles []string) {
+func (x *Xlsx) writeTitles(fields []reflect.StructField, titles []TitleField) {
 	row := x.currentSheet.AddRow()
 
 	for i := range fields {
-		row.AddCell().SetString(titles[i])
+		row.AddCell().SetString(titles[i].Title)
 	}
 }
 
 type templateLocation struct {
-	titledRowNumber int
-	templateCells   []templateCell
-	templateRows    []spreadsheet.Row
-}
-
-type templateCell struct {
-	cellColumn  string
-	structField reflect.StructField
+	titledRowNum  int
+	templateCells []TitleField
+	templateRows  []spreadsheet.Row
 }
 
 func (t *templateLocation) isValid() bool {
 	return len(t.templateCells) > 0
 }
 
-func (x *Xlsx) locateTitleRow(fields []reflect.StructField, titles []string) templateLocation {
+func (x *Xlsx) locateTitleRow(titles []TitleField) templateLocation {
 	if !x.hasInput() {
 		return templateLocation{}
 	}
 
 	rows := x.currentSheet.Rows()
-	titledRowNumber, templateCells := x.findTitledRow(fields, titles, rows)
-	templateRows := x.findTemplateRows(titledRowNumber, rows)
+	titledRowNum := x.findTitledRow(titles, rows)
+	templateRows := x.findTemplateRows(titledRowNum, rows)
 
 	return templateLocation{
-		titledRowNumber: titledRowNumber,
-		templateRows:    templateRows,
-		templateCells:   templateCells,
+		titledRowNum:  titledRowNum,
+		templateRows:  templateRows,
+		templateCells: titles,
 	}
 }
 
-func (x *Xlsx) findTitledRow(fields []reflect.StructField,
-	titles []string, rows []spreadsheet.Row) (int, []templateCell) {
-	titledRowNumber := -1
-	templateCells := make([]templateCell, 0, len(fields))
-
+func (x *Xlsx) findTitledRow(titles []TitleField, rows []spreadsheet.Row) int {
 	for _, row := range rows {
+		found := false
 		for _, cell := range row.Cells() {
 			cellString := GetCellString(cell)
+			if cellString == "" {
+				continue
+			}
 
 			for i, title := range titles {
-				if !strings.Contains(cellString, title) {
+				if !strings.Contains(cellString, title.Title) {
 					continue
 				}
 
@@ -620,22 +628,19 @@ func (x *Xlsx) findTitledRow(fields []reflect.StructField,
 					continue
 				}
 
-				templateCells = append(templateCells, templateCell{
-					cellColumn:  col,
-					structField: fields[i],
-				})
+				titles[i].Column = col
+				found = true
 
 				break
 			}
 		}
 
-		if len(templateCells) > 0 {
-			titledRowNumber = int(row.RowNumber())
-			break
+		if found {
+			return int(row.RowNumber())
 		}
 	}
 
-	return titledRowNumber, templateCells
+	return -1
 }
 
 func (x *Xlsx) findTemplateRows(titledRowNumber int, rows []spreadsheet.Row) []spreadsheet.Row {
@@ -656,12 +661,12 @@ func (x *Xlsx) findTemplateRows(titledRowNumber int, rows []spreadsheet.Row) []s
 
 func (x *Xlsx) writeTemplateRow(l templateLocation, v reflect.Value) {
 	// 2 是为了计算row num(1-N), 从标题行(T)的下一行（T+1)开始写
-	num := uint32(l.titledRowNumber + 1 + x.rowsWritten)
+	num := uint32(l.titledRowNum + 1 + x.rowsWritten)
 	x.rowsWritten++
 	row := x.currentSheet.Row(num)
 
 	for _, tc := range l.templateCells {
-		setCellValue(row.Cell(tc.cellColumn), tc.structField, v)
+		setCellValue(row.Cell(tc.Column), tc.StructField, v)
 	}
 
 	x.copyRowStyle(l, row)
@@ -675,9 +680,9 @@ func (x *Xlsx) copyRowStyle(l templateLocation, row spreadsheet.Row) {
 	templateRow := l.templateRows[(x.rowsWritten-1)%len(l.templateRows)]
 
 	for _, tc := range l.templateCells { // copying cell style
-		if cx := templateRow.Cell(tc.cellColumn).X(); cx.SAttr != nil {
+		if cx := templateRow.Cell(tc.Column).X(); cx.SAttr != nil {
 			if style := x.workbook.StyleSheet.GetCellStyle(*cx.SAttr); !style.IsEmpty() {
-				row.Cell(tc.cellColumn).SetStyle(style)
+				row.Cell(tc.Column).SetStyle(style)
 			}
 		}
 	}
@@ -691,7 +696,7 @@ func (x *Xlsx) removeTempleRows(l templateLocation) {
 	sheetData := x.currentSheet.X().CT_Worksheet.SheetData
 	rows := sheetData.Row
 
-	if endIndex := l.titledRowNumber + x.rowsWritten; endIndex < len(rows) {
+	if endIndex := l.titledRowNum + x.rowsWritten; endIndex < len(rows) {
 		sheetData.Row = rows[:endIndex]
 	}
 }

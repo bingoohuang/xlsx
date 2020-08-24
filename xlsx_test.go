@@ -22,16 +22,16 @@ func ReadBytes(filename string) []byte {
 func ExampleXlsx() {
 	type (
 		HostInfo struct {
-			ServerName         string    `title:"主机名称" name:"server_name" json:"serverName"`
-			ServerHostname     string    `title:"主机hostname" name:"server_hostname" json:"serverHostname"`
-			ServerIP           string    `title:"主机IP" name:"server_ip" json:"serverIp"`
-			ServerUserRtx      string    `title:"主机负责人(rtx)" name:"server_user_rtx" json:"serverUserRtx"`
-			Status             string    `name:"status" json:"status"` // 状态：0正常 1删除
-			InstanceID         string    `title:"实例ID" name:"instance_id" json:"instanceId"`
-			Region             string    `title:"服务器可用区" name:"region" json:"region"`
-			CreateTime         time.Time `name:"create_time" json:"createTime"` // 创建时间
-			UpdateTime         time.Time `name:"update_time" json:"updateTime"` // 修改时间
-			ServerUserFullName string    `name:"server_user_full_name" json:"serverUserFullName"`
+			ServerName         string    `title:"主机名称" json:"serverName"`
+			ServerHostname     string    `title:"主机hostname" json:"serverHostname"`
+			ServerIP           string    `title:"主机IP" json:"serverIp"`
+			ServerUserRtx      string    `json:"serverUserRtx"`
+			Status             string    `json:"status"` // 状态：0正常 1删除
+			InstanceID         string    `title:"实例ID" json:"instanceId"`
+			Region             string    `title:"服务器可用区" json:"region"`
+			CreateTime         time.Time `json:"createTime"` // 创建时间
+			UpdateTime         time.Time `json:"updateTime"` // 修改时间
+			ServerUserFullName string    `title:"主机负责人(rtx)" json:"serverUserFullName"`
 		}
 		Rsp struct {
 			Status  int        `json:"status"`

@@ -48,8 +48,11 @@ func ExampleXlsx() {
 	x, _ := xlsx.New(xlsx.WithTemplate("testdata/hostinfos_template.xlsx"))
 	defer x.Close()
 
-	err = x.Write(r.Data)
+	err = x.Write(r.Data, xlsx.WithSheetName("FirstSheet"))
 	fmt.Println("Write", err == nil)
+
+	r.Data[0].ServerName += "第2页啦"
+	_ = x.Write(r.Data, xlsx.WithSheetName("SecondSheet"))
 
 	err = x.SaveToFile("testdata/out_hostinfos.xlsx")
 	fmt.Println("SaveToFile", err == nil)

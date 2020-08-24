@@ -11,6 +11,24 @@ import (
 	"github.com/unidoc/unioffice/spreadsheet"
 )
 
+func CopyRowStyle(from, to spreadsheet.Row) {
+	for _, f := range from.Cells() { // copying cell style
+		fcol, _ := f.Column()
+		t := to.Cell(fcol)
+
+		CopyCellStyle(f, t)
+	}
+}
+
+func CopyCellStyle(from, to spreadsheet.Cell) {
+	if cx := from.X(); cx.SAttr != nil {
+		w := *(**spreadsheet.Workbook)(unsafe.Pointer(&from))
+		if style := w.StyleSheet.GetCellStyle(*cx.SAttr); !style.IsEmpty() {
+			to.SetStyle(style)
+		}
+	}
+}
+
 // GetCellString returns the string in a cell if it's an inline or string table
 // string. Otherwise it returns an empty string.
 func GetCellString(c spreadsheet.Cell) string {

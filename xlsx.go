@@ -21,7 +21,9 @@ type Xlsx struct {
 	tmplWorkbook, workbook  *spreadsheet.Workbook
 	tmplSheet, currentSheet spreadsheet.Sheet
 	option                  *Option
-	rowsWritten             int
+	rowsWritten             uint32
+
+	tmplSheetReused bool
 }
 
 func (x *Xlsx) hasInput() bool { return x.option.TemplateWorkbook != nil || x.option.Workbook != nil }
@@ -57,16 +59,17 @@ func (x *Xlsx) Close() error {
 }
 
 type run struct {
-	isSlice   bool
-	isPtr     bool
-	beanType  reflect.Type
-	rawValue  reflect.Value
-	beanValue reflect.Value
-	ttags     []reflect.StructTag
-	fields    []reflect.StructField
+	isSlice     bool
+	isPtr       bool
+	beanType    reflect.Type
+	rawValue    reflect.Value
+	beanValue   reflect.Value
+	ttags       []reflect.StructTag
+	fields      []reflect.StructField
+	writeOption WriteOption
 }
 
-func makeRun(beans interface{}) *run {
+func makeRun(beans interface{}, writeOptionFns []WriteOptionFn) *run {
 	r := &run{}
 	r.rawValue = reflect.ValueOf(beans)
 	r.beanValue = r.rawValue
@@ -86,6 +89,12 @@ func makeRun(beans interface{}) *run {
 
 	r.collectTags()
 	r.collectExportableFields()
+
+	r.writeOption = WriteOption{}
+
+	for _, fn := range writeOptionFns {
+		fn(&r.writeOption)
+	}
 
 	return r
 }
@@ -160,23 +169,40 @@ func ParseBool(v string, defaultValue bool) bool {
 	}
 }
 
+type WriteOption struct {
+	SheetName string
+}
+
+type WriteOptionFn func(*WriteOption)
+
+func WithSheetName(v string) WriteOptionFn {
+	return func(o *WriteOption) {
+		o.SheetName = v
+	}
+}
+
 // Write Writes beans to the underlying xlsx.
-func (x *Xlsx) Write(beans interface{}) error {
-	r := makeRun(beans)
+func (x *Xlsx) Write(beans interface{}, writeOptionFns ...WriteOptionFn) error {
+	r := makeRun(beans, writeOptionFns)
 	if r.isEmptySlice() {
 		return nil
 	}
 
-	x.currentSheet = x.createSheet(x.workbook, r, false)
+	x.tmplSheet, x.currentSheet = x.createWriteSheet(x.workbook, r)
 
 	if r.asPlaceholder() {
-		x.writePlaceholderTemplate(r.fields, collectPlaceholders(x.currentSheet), r.getSingleBean())
+		x.writePlaceholder(r.fields, collectPlaceholders(x.currentSheet), r.getSingleBean())
 
 		return nil
 	}
 
 	titles, _ := collectTitles(r.fields)
 	location := x.locateTitleRow(titles)
+
+	newSheet := x.tmplSheet != x.currentSheet
+	if newSheet {
+		copyRowsUtilTitle(location, x.tmplSheet, x.currentSheet)
+	}
 
 	if !location.isValid() {
 		x.writeTitles(r.fields, titles)
@@ -187,10 +213,10 @@ func (x *Xlsx) Write(beans interface{}) error {
 
 		if r.isSlice {
 			for i := 0; i < r.beanValue.Len(); i++ {
-				x.writeTemplateRow(location, r.beanValue.Index(i))
+				x.writeTemplateRow(location, r.beanValue.Index(i), newSheet)
 			}
 		} else {
-			x.writeTemplateRow(location, r.beanValue)
+			x.writeTemplateRow(location, r.beanValue, newSheet)
 		}
 
 		x.removeTempleRows(location)
@@ -209,7 +235,27 @@ func (x *Xlsx) Write(beans interface{}) error {
 	return x.createDataValidations(r.fields, x.currentSheet)
 }
 
-func (x *Xlsx) writePlaceholderTemplate(fields []reflect.StructField,
+func copyRowsUtilTitle(location templateLocation, tmplSheet, dataSheet spreadsheet.Sheet) {
+	for _, trow := range tmplSheet.Rows() {
+		if trow.RowNumber() > location.titledRowNum {
+			break
+		}
+
+		drow := dataSheet.Row(trow.RowNumber())
+		copyRow(trow, drow)
+	}
+}
+
+func copyRow(from, to spreadsheet.Row) {
+	for _, f := range from.Cells() {
+		col, _ := f.Column()
+		t := to.Cell(col)
+		t.SetString(GetCellString(f))
+		CopyCellStyle(f, t)
+	}
+}
+
+func (x *Xlsx) writePlaceholder(fields []reflect.StructField,
 	plMap map[string]PlaceholderValue, v reflect.Value) {
 	vars := make(map[string]string)
 	placeholderCells := make(map[string]string)
@@ -277,7 +323,7 @@ func (x *Xlsx) createTemplateDataValidations(l templateLocation, sheet spreadshe
 	return nil
 }
 
-func (x *Xlsx) createColumnDataValidation(startRowNum int, sheet spreadsheet.Sheet, tag, cellColumn string) error {
+func (x *Xlsx) createColumnDataValidation(startRowNum uint32, sheet spreadsheet.Sheet, tag, cellColumn string) error {
 	if tag == "" {
 		return nil
 	}
@@ -313,14 +359,14 @@ func (x *Xlsx) createColumnDataValidation(startRowNum int, sheet spreadsheet.She
 // Read reads the excel rows to slice.
 // nolint:goerr113
 func (x *Xlsx) Read(slicePtr interface{}) error {
-	r := makeRun(slicePtr)
+	r := makeRun(slicePtr, nil)
 
 	if !r.forRead() {
 		return errors.New("the input argument should be a pointer of slice")
 	}
 
-	x.tmplSheet = x.createSheet(x.tmplWorkbook, r, true)
-	x.currentSheet = x.createSheet(x.workbook, r, true)
+	x.tmplSheet = x.createReadSheet(x.tmplWorkbook, r)
+	x.currentSheet = x.createReadSheet(x.workbook, r)
 
 	if r.asPlaceholder() {
 		err := x.writePlaceholderToBean(r)
@@ -457,7 +503,42 @@ func setFieldValue(rowBean reflect.Value, sf reflect.StructField, s string) erro
 	return nil
 }
 
-func (x *Xlsx) createSheet(wb *spreadsheet.Workbook, r *run, readonly bool) spreadsheet.Sheet {
+func (x *Xlsx) createWriteSheet(wb *spreadsheet.Workbook, r *run) (tmplSheet, dataSheet spreadsheet.Sheet) {
+	wbSheet := spreadsheet.Sheet{}
+	sheetName := r.FindTtag("sheet")
+
+	if x.hasInput() {
+		if sh := x.findSheet(wb, sheetName); sh.IsValid() {
+			wbSheet = sh
+		} else if len(wb.Sheets()) > 0 {
+			wbSheet = wb.Sheets()[0]
+		}
+	}
+
+	if !wbSheet.IsValid() {
+		wbSheet = wb.AddSheet()
+	}
+
+	dataSheet = wbSheet
+
+	if r.writeOption.SheetName != "" {
+		if x.tmplSheetReused {
+			dataSheet = wb.AddSheet()
+		} else {
+			x.tmplSheetReused = true
+		}
+
+		dataSheet.SetName(r.writeOption.SheetName)
+	}
+
+	if sheetName != "" && !strings.Contains(wbSheet.Name(), sheetName) {
+		wbSheet.SetName(sheetName)
+	}
+
+	return wbSheet, dataSheet
+}
+
+func (x *Xlsx) createReadSheet(wb *spreadsheet.Workbook, r *run) spreadsheet.Sheet {
 	wbSheet := spreadsheet.Sheet{}
 
 	if wb == nil {
@@ -472,20 +553,8 @@ func (x *Xlsx) createSheet(wb *spreadsheet.Workbook, r *run, readonly bool) spre
 		}
 
 		if len(wb.Sheets()) > 0 {
-			wbSheet = wb.Sheets()[0]
+			return wb.Sheets()[0]
 		}
-	}
-
-	if readonly {
-		return wbSheet
-	}
-
-	if !wbSheet.IsValid() {
-		wbSheet = wb.AddSheet()
-	}
-
-	if sheetName != "" && !strings.Contains(wbSheet.Name(), sheetName) {
-		wbSheet.SetName(sheetName)
 	}
 
 	return wbSheet
@@ -583,7 +652,7 @@ func (x *Xlsx) writeTitles(fields []reflect.StructField, titles []TitleField) {
 }
 
 type templateLocation struct {
-	titledRowNum  int
+	titledRowNum  uint32
 	templateCells []TitleField
 	templateRows  []spreadsheet.Row
 }
@@ -597,7 +666,12 @@ func (x *Xlsx) locateTitleRow(titles []TitleField) templateLocation {
 		return templateLocation{}
 	}
 
-	rows := x.currentSheet.Rows()
+	tmplSheet := x.tmplSheet
+	if !tmplSheet.IsValid() {
+		tmplSheet = x.currentSheet
+	}
+
+	rows := tmplSheet.Rows()
 	titledRowNum := x.findTitledRow(titles, rows)
 	templateRows := x.findTemplateRows(titledRowNum, rows)
 
@@ -608,7 +682,7 @@ func (x *Xlsx) locateTitleRow(titles []TitleField) templateLocation {
 	}
 }
 
-func (x *Xlsx) findTitledRow(titles []TitleField, rows []spreadsheet.Row) int {
+func (x *Xlsx) findTitledRow(titles []TitleField, rows []spreadsheet.Row) uint32 {
 	for _, row := range rows {
 		found := false
 		for _, cell := range row.Cells() {
@@ -636,22 +710,22 @@ func (x *Xlsx) findTitledRow(titles []TitleField, rows []spreadsheet.Row) int {
 		}
 
 		if found {
-			return int(row.RowNumber())
+			return row.RowNumber()
 		}
 	}
 
-	return -1
+	return 0
 }
 
-func (x *Xlsx) findTemplateRows(titledRowNumber int, rows []spreadsheet.Row) []spreadsheet.Row {
+func (x *Xlsx) findTemplateRows(titledRowNum uint32, rows []spreadsheet.Row) []spreadsheet.Row {
 	templateRows := make([]spreadsheet.Row, 0)
 
-	if titledRowNumber < 0 {
+	if titledRowNum < 0 {
 		return templateRows
 	}
 
 	for _, row := range rows {
-		if row.RowNumber() > uint32(titledRowNumber) {
+		if row.RowNumber() > uint32(titledRowNum) {
 			templateRows = append(templateRows, row)
 		}
 	}
@@ -659,7 +733,7 @@ func (x *Xlsx) findTemplateRows(titledRowNumber int, rows []spreadsheet.Row) []s
 	return templateRows
 }
 
-func (x *Xlsx) writeTemplateRow(l templateLocation, v reflect.Value) {
+func (x *Xlsx) writeTemplateRow(l templateLocation, v reflect.Value, newSheet bool) {
 	// 2 是为了计算row num(1-N), 从标题行(T)的下一行（T+1)开始写
 	num := uint32(l.titledRowNum + 1 + x.rowsWritten)
 	x.rowsWritten++
@@ -669,23 +743,21 @@ func (x *Xlsx) writeTemplateRow(l templateLocation, v reflect.Value) {
 		setCellValue(row.Cell(tc.Column), tc.StructField, v)
 	}
 
-	x.copyRowStyle(l, row)
+	x.copyRowStyle(l, row, newSheet)
 }
 
-func (x *Xlsx) copyRowStyle(l templateLocation, row spreadsheet.Row) {
-	if len(l.templateRows) == 0 || x.rowsWritten < len(l.templateRows) {
+func (x *Xlsx) copyRowStyle(l templateLocation, row spreadsheet.Row, newSheet bool) {
+	if len(l.templateRows) == 0 {
 		return
 	}
 
-	templateRow := l.templateRows[(x.rowsWritten-1)%len(l.templateRows)]
-
-	for _, tc := range l.templateCells { // copying cell style
-		if cx := templateRow.Cell(tc.Column).X(); cx.SAttr != nil {
-			if style := x.workbook.StyleSheet.GetCellStyle(*cx.SAttr); !style.IsEmpty() {
-				row.Cell(tc.Column).SetStyle(style)
-			}
-		}
+	if !newSheet && x.rowsWritten < uint32(len(l.templateRows)) {
+		return
 	}
+
+	templateRow := l.templateRows[(x.rowsWritten-1)%uint32(len(l.templateRows))]
+
+	CopyRowStyle(templateRow, row)
 }
 
 func (x *Xlsx) removeTempleRows(l templateLocation) {
@@ -696,7 +768,7 @@ func (x *Xlsx) removeTempleRows(l templateLocation) {
 	sheetData := x.currentSheet.X().CT_Worksheet.SheetData
 	rows := sheetData.Row
 
-	if endIndex := l.titledRowNum + x.rowsWritten; endIndex < len(rows) {
+	if endIndex := l.titledRowNum + x.rowsWritten; endIndex < uint32(len(rows)) {
 		sheetData.Row = rows[:endIndex]
 	}
 }

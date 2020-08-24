@@ -355,7 +355,7 @@ func (x *Xlsx) writePlaceholderToBean(r *run) error {
 
 	for _, f := range r.fields {
 		if v := f.Tag.Get("placeholderCell"); v != "" {
-			vs := GetCellString(x.workbook, x.currentSheet.Cell(v))
+			vs := GetCellString(x.currentSheet.Cell(v))
 			if err := setFieldValue(vv, f, vs); err != nil {
 				return err
 			}
@@ -407,7 +407,7 @@ func (x *Xlsx) createRowBean(beanType reflect.Type, l templateLocation,
 
 	for i, cell := range l.templateCells {
 		c := row.Cell(cell.cellColumn)
-		s := strings.TrimSpace(GetCellString(x.workbook, c))
+		s := GetCellString(c)
 		values[i] = templateCellValue{
 			templateCell: cell,
 			value:        s,
@@ -607,7 +607,7 @@ func (x *Xlsx) findTitledRow(fields []reflect.StructField,
 
 	for _, row := range rows {
 		for _, cell := range row.Cells() {
-			cellString := GetCellString(x.workbook, cell)
+			cellString := GetCellString(cell)
 
 			for i, title := range titles {
 				if !strings.Contains(cellString, title) {
@@ -711,7 +711,7 @@ func (x *Xlsx) readPlaceholderValues() map[string]string {
 	plVars := make(map[string]string)
 
 	for k, v := range plMap {
-		cellValue := GetCellString(x.workbook, x.currentSheet.Cell(k))
+		cellValue := GetCellString(x.currentSheet.Cell(k))
 
 		if vars, ok := v.ParseVars(cellValue); ok {
 			for vk, vv := range vars {

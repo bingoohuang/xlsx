@@ -33,7 +33,7 @@ func main() {
 			log.Printf("Row at %d\n", j+1)
 
 			for k, cell := range row.Cells() {
-				s := xlsx.GetCellString(wb, cell)
+				s := xlsx.GetCellString(cell)
 				log.Printf("Cell[%d:%d] %s\n", j+1, k+1, s)
 			}
 		}

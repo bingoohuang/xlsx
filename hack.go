@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"strconv"
+	"strings"
+	"unsafe"
 
 	"github.com/unidoc/unioffice/schema/soo/sml"
 	"github.com/unidoc/unioffice/spreadsheet"
@@ -11,17 +13,17 @@ import (
 
 // GetCellString returns the string in a cell if it's an inline or string table
 // string. Otherwise it returns an empty string.
-func GetCellString(w *spreadsheet.Workbook, c spreadsheet.Cell) string {
+func GetCellString(c spreadsheet.Cell) string {
 	x := c.X()
 
 	switch x.TAttr {
 	case sml.ST_CellTypeInlineStr:
 		if x.Is != nil && x.Is.T != nil {
-			return *x.Is.T
+			return strings.TrimSpace(*x.Is.T)
 		}
 
 		if x.V != nil {
-			return *x.V
+			return strings.TrimSpace(*x.V)
 		}
 	case sml.ST_CellTypeS:
 		if x.V == nil {
@@ -33,7 +35,7 @@ func GetCellString(w *spreadsheet.Workbook, c spreadsheet.Cell) string {
 			return ""
 		}
 
-		s, err := GetSharedString(w.SharedStrings.X(), id)
+		s, err := GetSharedString(c, id)
 		if err != nil {
 			return ""
 		}
@@ -45,15 +47,18 @@ func GetCellString(w *spreadsheet.Workbook, c spreadsheet.Cell) string {
 		return ""
 	}
 
-	return *x.V
+	return strings.TrimSpace(*x.V)
 }
 
 // GetSharedString retrieves a string from the shared strings table by index.
 // nolint:goerr113
-func GetSharedString(x *sml.Sst, id int) (string, error) {
+func GetSharedString(c spreadsheet.Cell, id int) (string, error) {
 	if id < 0 {
 		return "", fmt.Errorf("invalid string index %d, must be > 0", id)
 	}
+
+	w := *(**spreadsheet.Workbook)(unsafe.Pointer(&c))
+	x := w.SharedStrings.X()
 
 	if id > len(x.Si) {
 		return "", fmt.Errorf("invalid string index %d, table only has %d values", id, len(x.Si))
@@ -70,7 +75,7 @@ func GetSharedString(x *sml.Sst, id int) (string, error) {
 		s += r.T
 	}
 
-	return s, nil
+	return strings.TrimSpace(s), nil
 }
 
 type flagNoopValue struct{}

@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/szyhf/go-excel"
 	"os"
+
+	"github.com/szyhf/go-excel"
 )
 
 type DataImport struct {
@@ -13,6 +14,10 @@ type DataImport struct {
 
 func main() {
 	// goexcel ../../testdata/埋点导入模板-pdf.xlsx
+	if len(os.Args) < 1 {
+		fmt.Fprintln(os.Stderr, "Usage: goexcel demo_imnput.xlsx")
+		os.Exit(0)
+	}
 
 	// will assume the sheet name as "Standard" from the struct name.
 	var dataImports []DataImport

@@ -169,11 +169,45 @@ func ParseBool(v string, defaultValue bool) bool {
 	}
 }
 
+type MergeColsMode int
+
+const (
+	// DoNotMerge do not merge.
+	DoNotMerge MergeColsMode = iota
+	// MergeCols merge columns separately.
+	// like:
+	// a, b, 1
+	// a, b, 2
+	// c, b, 3
+	// will merged to :
+	// a, b, 1
+	// -, -, 2
+	// c, -, 3
+	MergeCols
+	// MergeColsAlign merge columns align left merging.
+	// like:
+	// a, b, 1
+	// a, b, 2
+	// c, b, 3
+	// will merged to :
+	// a, b, 1
+	// -, -, 2
+	// c, b, 3
+	MergeColsAlign
+)
+
 type WriteOption struct {
-	SheetName string
+	SheetName     string
+	MergeColsMode MergeColsMode
 }
 
 type WriteOptionFn func(*WriteOption)
+
+func WithMergeColsMode(v MergeColsMode) WriteOptionFn {
+	return func(o *WriteOption) {
+		o.MergeColsMode = v
+	}
+}
 
 func WithSheetName(v string) WriteOptionFn {
 	return func(o *WriteOption) {

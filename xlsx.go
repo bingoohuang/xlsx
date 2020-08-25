@@ -3,8 +3,10 @@ package xlsx
 import (
 	"errors"
 	"fmt"
+	"github.com/unidoc/unioffice/spreadsheet/reference"
 	"io"
 	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -172,9 +174,9 @@ func ParseBool(v string, defaultValue bool) bool {
 type MergeColsMode int
 
 const (
-	// DoNotMerge do not merge.
+	// DoNotMerge do not mergeTitled.
 	DoNotMerge MergeColsMode = iota
-	// MergeCols merge columns separately.
+	// MergeCols mergeTitled columns separately.
 	// like:
 	// a, b, 1
 	// a, b, 2
@@ -184,7 +186,7 @@ const (
 	// -, -, 2
 	// c, -, 3
 	MergeCols
-	// MergeColsAlign merge columns align left merging.
+	// MergeColsAlign mergeTitled columns align left merging.
 	// like:
 	// a, b, 1
 	// a, b, 2
@@ -254,14 +256,23 @@ func (x *Xlsx) Write(beans interface{}, writeOptionFns ...WriteOptionFn) error {
 		}
 
 		x.removeTempleRows(location)
+		x.mergeTitled(location, r.writeOption)
 
 		return x.createTemplateDataValidations(location, x.currentSheet)
 	}
 
 	if r.isSlice {
+		startRowNum := -1
+		endRowNum := -1
 		for i := 0; i < r.beanValue.Len(); i++ {
-			x.writeRow(r.fields, r.beanValue.Index(i))
+			rowNum := x.writeRow(r.fields, r.beanValue.Index(i))
+			if i == 0 {
+				startRowNum = int(rowNum)
+			}
+
+			endRowNum = int(rowNum)
 		}
+		x.mergeRows(r.fields, r.writeOption, startRowNum, endRowNum)
 	} else {
 		x.writeRow(r.fields, r.beanValue)
 	}
@@ -347,7 +358,7 @@ func (x *Xlsx) createDataValidations(fields []reflect.StructField, sheet spreads
 }
 
 func (x *Xlsx) createTemplateDataValidations(l templateLocation, sheet spreadsheet.Sheet) error {
-	for _, tc := range l.templateCells {
+	for _, tc := range l.titleFields {
 		dv := tc.StructField.Tag.Get("dataValidation")
 		if err := x.createColumnDataValidation(l.titledRowNum+1, sheet, dv, tc.Column); err != nil {
 			return err
@@ -481,10 +492,10 @@ func (x *Xlsx) createRowBean(beanType reflect.Type, l templateLocation,
 		value string
 	}
 
-	values := make([]templateCellValue, len(l.templateCells))
+	values := make([]templateCellValue, len(l.titleFields))
 	emptyCells := 0
 
-	for i, cell := range l.templateCells {
+	for i, cell := range l.titleFields {
 		c := row.Cell(cell.Column)
 		s := GetCellString(c)
 		values[i] = templateCellValue{
@@ -497,7 +508,7 @@ func (x *Xlsx) createRowBean(beanType reflect.Type, l templateLocation,
 		}
 	}
 
-	if emptyCells == len(l.templateCells) {
+	if emptyCells == len(l.titleFields) {
 		return reflect.Value{}, nil
 	}
 
@@ -631,13 +642,15 @@ func (x *Xlsx) SaveToFile(file string) error { return x.workbook.SaveToFile(file
 // Save writes the workbook out to a writer in the zipped xlsx format.
 func (x *Xlsx) Save(w io.Writer) error { return x.workbook.Save(w) }
 
-func (x *Xlsx) writeRow(fields []reflect.StructField, value reflect.Value) {
+func (x *Xlsx) writeRow(fields []reflect.StructField, value reflect.Value) uint32 {
 	row := x.currentSheet.AddRow()
 	x.rowsWritten++
 
 	for _, field := range fields {
 		setCellValue(row.AddCell(), field, value)
 	}
+
+	return row.RowNumber()
 }
 
 func getFieldValue(field reflect.StructField, value reflect.Value) string {
@@ -686,13 +699,13 @@ func (x *Xlsx) writeTitles(fields []reflect.StructField, titles []TitleField) {
 }
 
 type templateLocation struct {
-	titledRowNum  uint32
-	templateCells []TitleField
-	templateRows  []spreadsheet.Row
+	titledRowNum uint32
+	titleFields  []TitleField
+	templateRows []spreadsheet.Row
 }
 
 func (t *templateLocation) isValid() bool {
-	return len(t.templateCells) > 0
+	return len(t.titleFields) > 0
 }
 
 func (x *Xlsx) locateTitleRow(titles []TitleField) templateLocation {
@@ -710,15 +723,16 @@ func (x *Xlsx) locateTitleRow(titles []TitleField) templateLocation {
 	templateRows := x.findTemplateRows(titledRowNum, rows)
 
 	return templateLocation{
-		titledRowNum:  titledRowNum,
-		templateRows:  templateRows,
-		templateCells: titles,
+		titledRowNum: titledRowNum,
+		templateRows: templateRows,
+		titleFields:  titles,
 	}
 }
 
 func (x *Xlsx) findTitledRow(titles []TitleField, rows []spreadsheet.Row) uint32 {
 	for _, row := range rows {
 		found := false
+
 		for _, cell := range RowCells(row) {
 			cellString := GetCellString(cell)
 			if cellString == "" {
@@ -769,11 +783,11 @@ func (x *Xlsx) findTemplateRows(titledRowNum uint32, rows []spreadsheet.Row) []s
 
 func (x *Xlsx) writeTemplateRow(l templateLocation, v reflect.Value, newSheet bool) {
 	// 2 是为了计算row num(1-N), 从标题行(T)的下一行（T+1)开始写
-	num := uint32(l.titledRowNum + 1 + x.rowsWritten)
+	num := l.titledRowNum + 1 + x.rowsWritten
 	x.rowsWritten++
 	row := x.currentSheet.Row(num)
 
-	for _, tc := range l.templateCells {
+	for _, tc := range l.titleFields {
 		setCellValue(row.Cell(tc.Column), tc.StructField, v)
 	}
 
@@ -834,6 +848,126 @@ func (x *Xlsx) readPlaceholderValues() map[string]string {
 	}
 
 	return plVars
+}
+
+func (x *Xlsx) mergeTitled(l templateLocation, option WriteOption) {
+	if x.rowsWritten <= 1 { // there is no need to mergeTitled for one row.
+		return
+	}
+
+	switch option.MergeColsMode {
+	case DoNotMerge:
+		// nothing to do
+	case MergeCols, MergeColsAlign:
+		x.mergeCols(l, option.MergeColsMode)
+	}
+}
+
+func (x *Xlsx) mergeCols(l templateLocation, mode MergeColsMode) {
+	alignRowNums := make([]int, 0)
+
+	for _, tf := range l.titleFields {
+		var i uint32 = 1
+
+		startCellString := ""
+		startCell := spreadsheet.Cell{}
+		startRowNum := 0
+		lastCell := spreadsheet.Cell{}
+
+		for ; i <= x.rowsWritten; i++ {
+			rowNum := l.titledRowNum + i
+			cell := x.currentSheet.Row(rowNum).Cell(tf.Column)
+			cs := GetCellString(cell)
+			if cs == startCellString && !reachAlignRowNum(alignRowNums, startRowNum, int(rowNum), mode) {
+				lastCell = cell
+				continue
+			}
+
+			if startCellString != "" && lastCell.X() != nil {
+				x.currentSheet.AddMergedCells(startCell.Reference(), lastCell.Reference())
+				alignRowNums = addAlignRowNum(alignRowNums, int(rowNum-1), mode)
+			}
+
+			startCellString = cs
+			startCell = cell
+			startRowNum = int(rowNum)
+			lastCell = spreadsheet.Cell{}
+		}
+
+		if startCellString != "" && lastCell.X() != nil {
+			x.currentSheet.AddMergedCells(startCell.Reference(), lastCell.Reference())
+		}
+	}
+}
+
+func (x *Xlsx) mergeRows(fields []reflect.StructField, option WriteOption, startRowNum, endRowNum int) {
+	if endRowNum-startRowNum <= 1 {
+		return
+	}
+
+	switch option.MergeColsMode {
+	case DoNotMerge:
+		// nothing to do
+	case MergeCols, MergeColsAlign:
+		x.mergeUntitledCols(fields, startRowNum, endRowNum, option.MergeColsMode)
+	}
+}
+
+func (x *Xlsx) mergeUntitledCols(fields []reflect.StructField, startRow, endRow int, mode MergeColsMode) {
+	alignRowNums := make([]int, 0)
+
+	for i := range fields {
+		startCellString := ""
+		startCell := spreadsheet.Cell{}
+		startRowNum := 0
+		lastCell := spreadsheet.Cell{}
+
+		for rowNum := startRow; rowNum <= endRow; rowNum++ {
+			cell := x.currentSheet.Row(uint32(rowNum)).Cell(reference.IndexToColumn(uint32(i)))
+			cs := GetCellString(cell)
+			if cs == startCellString && !reachAlignRowNum(alignRowNums, startRowNum, int(rowNum), mode) {
+				lastCell = cell
+				continue
+			}
+
+			if startCellString != "" && lastCell.X() != nil {
+				x.currentSheet.AddMergedCells(startCell.Reference(), lastCell.Reference())
+				alignRowNums = addAlignRowNum(alignRowNums, int(rowNum-1), mode)
+			}
+
+			startCellString = cs
+			startCell = cell
+			startRowNum = int(rowNum)
+			lastCell = spreadsheet.Cell{}
+		}
+
+		if startCellString != "" && lastCell.X() != nil {
+			x.currentSheet.AddMergedCells(startCell.Reference(), lastCell.Reference())
+		}
+	}
+}
+
+func addAlignRowNum(alignRowNums []int, num int, mode MergeColsMode) []int {
+	if mode == MergeColsAlign {
+		alignRowNums = append(alignRowNums, num)
+		sort.Ints(alignRowNums)
+	}
+
+	return alignRowNums
+}
+
+func reachAlignRowNum(alignRowNums []int, startRowNum, num int, mode MergeColsMode) bool {
+	if mode == MergeCols {
+		return false
+	}
+
+	for _, align := range alignRowNums {
+		if startRowNum <= align && align <= num {
+			return true
+		}
+	}
+
+	return false
 }
 
 // nolint:gochecknoglobals

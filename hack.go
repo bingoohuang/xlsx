@@ -3,11 +3,12 @@ package xlsx
 import (
 	"flag"
 	"fmt"
-	"github.com/unidoc/unioffice"
-	"github.com/unidoc/unioffice/spreadsheet/reference"
 	"strconv"
 	"strings"
 	"unsafe"
+
+	"github.com/unidoc/unioffice"
+	"github.com/unidoc/unioffice/spreadsheet/reference"
 
 	"github.com/unidoc/unioffice/schema/soo/sml"
 	"github.com/unidoc/unioffice/spreadsheet"
@@ -19,6 +20,7 @@ func RowCells(r spreadsheet.Row) []spreadsheet.Cell {
 	var ret []spreadsheet.Cell
 
 	lastIndex := -1
+
 	for _, c := range r.X().C {
 		if c.RAttr == nil {
 			unioffice.Log("RAttr is nil for a cell, skipping.")

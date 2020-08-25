@@ -78,6 +78,74 @@ func ExampleNew() {
 	// Output: Write true
 }
 
+func ExampleMerge() {
+	x, _ := xlsx.New()
+	defer x.Close()
+
+	_ = x.Write([]memberStat{
+		{Total: 100, New: 50, Effective: 50},
+		{Total: 100, New: 60, Effective: 50},
+		{Total: 200, New: 60, Effective: 140},
+		{Total: 200, New: 60, Effective: 140},
+	}, xlsx.WithMergeColsMode(xlsx.MergeCols))
+
+	err := x.SaveToFile("testdata/out_demo1_merge.xlsx")
+
+	// See: https://golang.org/pkg/testing/#hdr-Examples
+	fmt.Println("Write", err == nil)
+	// Output: Write true
+}
+
+func ExampleMergeAlign() {
+	x, _ := xlsx.New()
+	defer x.Close()
+
+	_ = x.Write([]memberStat{
+		{Total: 100, New: 50, Effective: 50},
+		{Total: 100, New: 60, Effective: 50},
+		{Total: 200, New: 60, Effective: 140},
+		{Total: 200, New: 60, Effective: 140},
+	}, xlsx.WithMergeColsMode(xlsx.MergeColsAlign))
+
+	err := x.SaveToFile("testdata/out_demo1_merge_align.xlsx")
+
+	// See: https://golang.org/pkg/testing/#hdr-Examples
+	fmt.Println("Write", err == nil)
+	// Output: Write true
+}
+
+func ExampleWithTemplateMerge() {
+	x, _ := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
+	defer x.Close()
+
+	_ = x.Write([]memberStat{
+		{Total: 100, New: 50, Effective: 50},
+		{Total: 100, New: 60, Effective: 50},
+		{Total: 200, New: 60, Effective: 140},
+		{Total: 200, New: 60, Effective: 140},
+	}, xlsx.WithMergeColsMode(xlsx.MergeCols))
+
+	err := x.SaveToFile("testdata/out_demo2_merge.xlsx")
+	fmt.Println("Write", err == nil)
+	// Output: Write true
+}
+
+func ExampleWithTemplateMergeColsAlign() {
+	x, _ := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
+	defer x.Close()
+
+	_ = x.Write([]memberStat{
+		{Total: 100, New: 50, Effective: 50},
+		{Total: 100, New: 60, Effective: 50},
+		{Total: 200, New: 60, Effective: 140},
+		{Total: 200, New: 60, Effective: 140},
+	}, xlsx.WithMergeColsMode(xlsx.MergeColsAlign))
+
+	err := x.SaveToFile("testdata/out_demo2_merge_align.xlsx")
+	fmt.Println("Write", err == nil)
+	// Output: Write true
+}
+
 func ExampleWithTemplate() {
 	x, _ := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
 	defer x.Close()

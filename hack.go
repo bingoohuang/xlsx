@@ -3,6 +3,8 @@ package xlsx
 import (
 	"flag"
 	"fmt"
+	"github.com/unidoc/unioffice"
+	"github.com/unidoc/unioffice/spreadsheet/reference"
 	"strconv"
 	"strings"
 	"unsafe"
@@ -10,6 +12,37 @@ import (
 	"github.com/unidoc/unioffice/schema/soo/sml"
 	"github.com/unidoc/unioffice/spreadsheet"
 )
+
+// RowCells returns a slice of cells.  The cells can be manipulated, but appending
+// to the slice will have no effect.
+func RowCells(r spreadsheet.Row) []spreadsheet.Cell {
+	var ret []spreadsheet.Cell
+
+	lastIndex := -1
+	for _, c := range r.X().C {
+		if c.RAttr == nil {
+			unioffice.Log("RAttr is nil for a cell, skipping.")
+			continue
+		}
+		ref, err := reference.ParseCellReference(*c.RAttr)
+		if err != nil {
+			unioffice.Log("RAttr is incorrect for a cell: " + *c.RAttr + ", skipping.")
+			continue
+		}
+		currentIndex := int(ref.ColumnIdx)
+		// Add lastIndex >= 0 to fix the Row.Cells method when first cell is not available.
+		if lastIndex >= 0 && currentIndex-lastIndex > 1 {
+			for col := lastIndex + 1; col < currentIndex; col++ {
+				ret = append(ret, r.Cell(reference.IndexToColumn(uint32(col))))
+			}
+		}
+
+		lastIndex = currentIndex
+		ret = append(ret, r.Cell(reference.IndexToColumn(ref.ColumnIdx)))
+	}
+
+	return ret
+}
 
 func CopyRowStyle(from, to spreadsheet.Row) {
 	for _, f := range from.Cells() { // copying cell style

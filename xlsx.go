@@ -247,7 +247,7 @@ func copyRowsUtilTitle(location templateLocation, tmplSheet, dataSheet spreadshe
 }
 
 func copyRow(from, to spreadsheet.Row) {
-	for _, f := range from.Cells() {
+	for _, f := range RowCells(from) {
 		col, _ := f.Column()
 		t := to.Cell(col)
 		t.SetString(GetCellString(f))
@@ -685,7 +685,7 @@ func (x *Xlsx) locateTitleRow(titles []TitleField) templateLocation {
 func (x *Xlsx) findTitledRow(titles []TitleField, rows []spreadsheet.Row) uint32 {
 	for _, row := range rows {
 		found := false
-		for _, cell := range row.Cells() {
+		for _, cell := range RowCells(row) {
 			cellString := GetCellString(cell)
 			if cellString == "" {
 				continue

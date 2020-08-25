@@ -78,7 +78,7 @@ func ExampleNew() {
 	// Output: Write true
 }
 
-func ExampleMerge() {
+func TestMerge(t *testing.T) {
 	x, _ := xlsx.New()
 	defer x.Close()
 
@@ -90,13 +90,10 @@ func ExampleMerge() {
 	}, xlsx.WithMergeColsMode(xlsx.MergeCols))
 
 	err := x.SaveToFile("testdata/out_demo1_merge.xlsx")
-
-	// See: https://golang.org/pkg/testing/#hdr-Examples
-	fmt.Println("Write", err == nil)
-	// Output: Write true
+	assert.Nil(t, err)
 }
 
-func ExampleMergeAlign() {
+func TestMergeAlign(t *testing.T) {
 	x, _ := xlsx.New()
 	defer x.Close()
 
@@ -108,13 +105,10 @@ func ExampleMergeAlign() {
 	}, xlsx.WithMergeColsMode(xlsx.MergeColsAlign))
 
 	err := x.SaveToFile("testdata/out_demo1_merge_align.xlsx")
-
-	// See: https://golang.org/pkg/testing/#hdr-Examples
-	fmt.Println("Write", err == nil)
-	// Output: Write true
+	assert.Nil(t, err)
 }
 
-func ExampleWithTemplateMerge() {
+func TestWithTemplateMerge(t *testing.T) {
 	x, _ := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
 	defer x.Close()
 
@@ -126,11 +120,10 @@ func ExampleWithTemplateMerge() {
 	}, xlsx.WithMergeColsMode(xlsx.MergeCols))
 
 	err := x.SaveToFile("testdata/out_demo2_merge.xlsx")
-	fmt.Println("Write", err == nil)
-	// Output: Write true
+	assert.Nil(t, err)
 }
 
-func ExampleWithTemplateMergeColsAlign() {
+func TestWithTemplateMergeColsAlign(t *testing.T) {
 	x, _ := xlsx.New(xlsx.WithTemplate("testdata/template.xlsx"))
 	defer x.Close()
 
@@ -142,8 +135,7 @@ func ExampleWithTemplateMergeColsAlign() {
 	}, xlsx.WithMergeColsMode(xlsx.MergeColsAlign))
 
 	err := x.SaveToFile("testdata/out_demo2_merge_align.xlsx")
-	fmt.Println("Write", err == nil)
-	// Output: Write true
+	assert.Nil(t, err)
 }
 
 func ExampleWithTemplate() {

@@ -2,6 +2,7 @@ package xlsx_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -431,4 +432,13 @@ func TestMaiDianDaoRu(t *testing.T) {
 		{Key: "签名验证业务#PKCS7签名(不带原文)#signHashedDataPkcs7_detach", Value: "Hash数据签名不带原文"},
 		{Key: "签名验证业务#PKCS7验签(不带原文)#signHashedDataPkcs7_detach", Value: "Hash数据验签不带原文"},
 	}, dataImports)
+}
+
+func TestLocationError(t *testing.T) {
+	x, err := xlsx.New(xlsx.WithExcel("testdata/bad.xlsx"))
+	assert.Nil(t, err)
+
+	var dataImports []DataImport
+	err = x.Read(&dataImports)
+	assert.True(t, errors.Is(err, xlsx.ErrFailToLocationTitleRow))
 }

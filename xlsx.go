@@ -3,12 +3,14 @@ package xlsx
 import (
 	"errors"
 	"fmt"
-	"github.com/unidoc/unioffice/spreadsheet/reference"
 	"io"
 	"reflect"
 	"sort"
 	"strings"
 	"time"
+
+	perr "github.com/pkg/errors"
+	"github.com/unidoc/unioffice/spreadsheet/reference"
 
 	"github.com/bingoohuang/xlsx/pkg/cast"
 
@@ -28,7 +30,9 @@ type Xlsx struct {
 	tmplSheetReused bool
 }
 
-func (x *Xlsx) hasInput() bool { return x.option.TemplateWorkbook != nil || x.option.Workbook != nil }
+func (x *Xlsx) hasInput() bool {
+	return x.option.TemplateWorkbook != nil || x.option.Workbook != nil
+}
 
 // New creates a new instance of Xlsx.
 func New(optionFns ...OptionFn) (x *Xlsx, err error) {
@@ -232,10 +236,16 @@ func (x *Xlsx) Write(beans interface{}, writeOptionFns ...WriteOptionFn) error {
 		return nil
 	}
 
-	titles, _ := collectTitles(r.fields)
-	location := x.locateTitleRow(titles)
+	titles, customizedTitles := collectTitles(r.fields)
+	loc, err := x.locateTitleRow(titles, customizedTitles)
 
+	if err != nil && !errors.Is(err, ErrNoExcelRead) {
+		return err
+	}
+
+	location := *loc
 	newSheet := x.tmplSheet != x.currentSheet
+
 	if newSheet {
 		copyRowsUtilTitle(location, x.tmplSheet, x.currentSheet)
 	}
@@ -264,8 +274,10 @@ func (x *Xlsx) Write(beans interface{}, writeOptionFns ...WriteOptionFn) error {
 	if r.isSlice {
 		startRowNum := -1
 		endRowNum := -1
+
 		for i := 0; i < r.beanValue.Len(); i++ {
 			rowNum := x.writeRow(r.fields, r.beanValue.Index(i))
+
 			if i == 0 {
 				startRowNum = int(rowNum)
 			}
@@ -424,9 +436,13 @@ func (x *Xlsx) Read(slicePtr interface{}) error {
 
 	ignoreEmptyRows := r.ignoreEmptyRows()
 
-	titles, _ := collectTitles(r.fields)
-	location := x.locateTitleRow(titles)
+	titles, customizedTitle := collectTitles(r.fields)
+	loc, err := x.locateTitleRow(titles, customizedTitle)
+	if err != nil {
+		return err
+	}
 
+	location := *loc
 	if location.isValid() {
 		slice, err := x.readRows(r.beanType, location, ignoreEmptyRows)
 		if err != nil {
@@ -708,9 +724,14 @@ func (t *templateLocation) isValid() bool {
 	return len(t.titleFields) > 0
 }
 
-func (x *Xlsx) locateTitleRow(titles []TitleField) templateLocation {
+var (
+	ErrFailToLocationTitleRow = errors.New("unable to location title row")
+	ErrNoExcelRead            = errors.New("no excel read")
+)
+
+func (x *Xlsx) locateTitleRow(titles []TitleField, customizedTitle bool) (*templateLocation, error) {
 	if !x.hasInput() {
-		return templateLocation{}
+		return &templateLocation{}, ErrNoExcelRead
 	}
 
 	tmplSheet := x.tmplSheet
@@ -719,18 +740,27 @@ func (x *Xlsx) locateTitleRow(titles []TitleField) templateLocation {
 	}
 
 	rows := tmplSheet.Rows()
-	titledRowNum := x.findTitledRow(titles, rows)
+	titledRowNum, err := x.findTitledRow(titles, customizedTitle, rows)
+	if err != nil {
+		return nil, ErrFailToLocationTitleRow
+	}
+
 	templateRows := x.findTemplateRows(titledRowNum, rows)
 
-	return templateLocation{
+	return &templateLocation{
 		titledRowNum: titledRowNum,
 		templateRows: templateRows,
 		titleFields:  titles,
-	}
+	}, nil
 }
 
-func (x *Xlsx) findTitledRow(titles []TitleField, rows []spreadsheet.Row) uint32 {
-	for _, row := range rows {
+func (x *Xlsx) findTitledRow(titles []TitleField, customizedTitle bool, rows []spreadsheet.Row) (uint32, error) {
+	for i, row := range rows {
+		if i > 5 { // nolint:gomnd
+			// 前5行都找不到的话，结束
+			return 0, ErrFailToLocationTitleRow
+		}
+
 		found := false
 
 		for _, cell := range RowCells(row) {
@@ -750,6 +780,10 @@ func (x *Xlsx) findTitledRow(titles []TitleField, rows []spreadsheet.Row) uint32
 					continue
 				}
 
+				if titles[i].Column != "" {
+					return 0, perr.Wrapf(ErrFailToLocationTitleRow, "duplicate columns contains title %s", title.Title)
+				}
+
 				titles[i].Column = col
 				found = true
 
@@ -757,23 +791,31 @@ func (x *Xlsx) findTitledRow(titles []TitleField, rows []spreadsheet.Row) uint32
 			}
 		}
 
+		if customizedTitle {
+			found = func() bool {
+				for _, t := range titles {
+					if t.Column == "" {
+						return false
+					}
+				}
+
+				return true
+			}()
+		}
+
 		if found {
-			return row.RowNumber()
+			return row.RowNumber(), nil
 		}
 	}
 
-	return 0
+	return 0, ErrFailToLocationTitleRow
 }
 
 func (x *Xlsx) findTemplateRows(titledRowNum uint32, rows []spreadsheet.Row) []spreadsheet.Row {
 	templateRows := make([]spreadsheet.Row, 0)
 
-	if titledRowNum < 0 {
-		return templateRows
-	}
-
 	for _, row := range rows {
-		if row.RowNumber() > uint32(titledRowNum) {
+		if row.RowNumber() > titledRowNum {
 			templateRows = append(templateRows, row)
 		}
 	}
@@ -885,6 +927,7 @@ func (x *Xlsx) mergeCols(l templateLocation, mode MergeColsMode) {
 
 			if startCellString != "" && lastCell.X() != nil {
 				x.currentSheet.AddMergedCells(startCell.Reference(), lastCell.Reference())
+
 				alignRowNums = addAlignRowNum(alignRowNums, int(rowNum-1), mode)
 			}
 
@@ -925,19 +968,19 @@ func (x *Xlsx) mergeUntitledCols(fields []reflect.StructField, startRow, endRow 
 		for rowNum := startRow; rowNum <= endRow; rowNum++ {
 			cell := x.currentSheet.Row(uint32(rowNum)).Cell(reference.IndexToColumn(uint32(i)))
 			cs := GetCellString(cell)
-			if cs == startCellString && !reachAlignRowNum(alignRowNums, startRowNum, int(rowNum), mode) {
+			if cs == startCellString && !reachAlignRowNum(alignRowNums, startRowNum, rowNum, mode) {
 				lastCell = cell
 				continue
 			}
 
 			if startCellString != "" && lastCell.X() != nil {
 				x.currentSheet.AddMergedCells(startCell.Reference(), lastCell.Reference())
-				alignRowNums = addAlignRowNum(alignRowNums, int(rowNum-1), mode)
+				alignRowNums = addAlignRowNum(alignRowNums, rowNum-1, mode)
 			}
 
 			startCellString = cs
 			startCell = cell
-			startRowNum = int(rowNum)
+			startRowNum = rowNum
 			lastCell = spreadsheet.Cell{}
 		}
 

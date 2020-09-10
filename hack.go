@@ -26,11 +26,13 @@ func RowCells(r spreadsheet.Row) []spreadsheet.Cell {
 			unioffice.Log("RAttr is nil for a cell, skipping.")
 			continue
 		}
+
 		ref, err := reference.ParseCellReference(*c.RAttr)
 		if err != nil {
 			unioffice.Log("RAttr is incorrect for a cell: " + *c.RAttr + ", skipping.")
 			continue
 		}
+
 		currentIndex := int(ref.ColumnIdx)
 		// Add lastIndex >= 0 to fix the Row.Cells method when first cell is not available.
 		if lastIndex >= 0 && currentIndex-lastIndex > 1 {
@@ -40,6 +42,7 @@ func RowCells(r spreadsheet.Row) []spreadsheet.Cell {
 		}
 
 		lastIndex = currentIndex
+
 		ret = append(ret, r.Cell(reference.IndexToColumn(ref.ColumnIdx)))
 	}
 

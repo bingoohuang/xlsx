@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"reflect"
 	"sort"
 	"strings"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/araddon/dateparse"
 
-	"github.com/sirupsen/logrus"
 	"github.com/unidoc/unioffice/spreadsheet"
 )
 
@@ -776,7 +776,7 @@ func (x *Xlsx) findTitledRow(titles []TitleField, customizedTitle bool, rows []s
 
 				col, err := cell.Column()
 				if err != nil {
-					logrus.Warnf("failed to get column error: %v", err)
+					log.Printf("W! failed to get column error: %v", err)
 					continue
 				}
 
@@ -885,7 +885,7 @@ func (x *Xlsx) readPlaceholderValues() map[string]string {
 				plVars[vk] = vv
 			}
 		} else {
-			logrus.Warnf("failed to parse vars from cell value %s by Part %+v", cellValue, v.Content)
+			log.Printf("W! failed to parse vars from cell value %s by Part %+v", cellValue, v.Content)
 		}
 	}
 

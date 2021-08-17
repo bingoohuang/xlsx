@@ -81,7 +81,7 @@ func NewUploadRequest(ctx context.Context, uri string, path, fileFieldName strin
 	return req, nil
 }
 
-//  DecodeDownloadFilename decodes the filename from the http response or empty.
+// DecodeDownloadFilename decodes the filename from the http response or empty.
 func DecodeDownloadFilename(res *http.Response) string {
 	// decode w.Header().Set("Content-Disposition", "attachment; filename=WHATEVER_YOU_WANT")
 	if cd := res.Header.Get("Content-Disposition"); cd != "" {

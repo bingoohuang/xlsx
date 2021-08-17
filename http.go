@@ -1,10 +1,9 @@
 package xlsx
 
 import (
+	"log"
 	"mime"
 	"net/http"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/unidoc/unioffice/spreadsheet"
 )
@@ -13,7 +12,7 @@ import (
 func WithUpload(r *http.Request, filenameKey string) OptionFn {
 	wb, err := parseUploadFile(r, filenameKey)
 	if err != nil {
-		logrus.Warnf("failed to open template excel %v", err)
+		log.Printf("W! failed to open template excel %v", err)
 		return nil
 	}
 

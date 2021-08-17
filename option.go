@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 
-	"github.com/sirupsen/logrus"
 	"github.com/unidoc/unioffice/spreadsheet"
 )
 
@@ -40,7 +40,7 @@ type OptionFn func(*Option)
 func WithTemplate(template interface{}) OptionFn {
 	wb, err := parseExcel(template)
 	if err != nil {
-		logrus.Warnf("failed to open template excel %v", err)
+		log.Printf("W! failed to open template excel %v", err)
 		return nil
 	}
 
@@ -55,7 +55,7 @@ func WithTemplate(template interface{}) OptionFn {
 func WithExcel(excel interface{}) OptionFn {
 	wb, err := parseExcel(excel)
 	if err != nil {
-		logrus.Warnf("failed to open excel %v", err)
+		log.Printf("W! failed to open excel %v", err)
 		return nil
 	}
 

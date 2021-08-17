@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bingoohuang/strcase"
+	"github.com/bingoohuang/gg/pkg/strcase"
 )
 
 // TryFind tries to find value by field name or tag value.

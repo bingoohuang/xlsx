@@ -223,6 +223,7 @@ func demo() error {
 
     *Libraries for working with Microsoft Excel.*
     
+    * [qax-os/excelize](https://github.com/qax-os/excelize) at 2022-04-12
     * [excelize](https://github.com/360EntSecGroup-Skylar/excelize) - Golang library for reading and writing Microsoft Excel™ (XLSX) files.
     * [go-excel](https://github.com/szyhf/go-excel) - A simple and light reader to read a relate-db-like excel as a table.
     * [goxlsxwriter](https://github.com/fterrag/goxlsxwriter) - Golang bindings for libxlsxwriter for writing XLSX (Microsoft Excel) files.

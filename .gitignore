@@ -16,3 +16,5 @@
 
 /.idea
 /testdata/dl.xlsx
+.vscode/
+.DS_Store

@@ -22,11 +22,20 @@ func createOption(optionFns []OptionFn) *Option {
 	return option
 }
 
+type TitleOptionEnum uint8
+
+const (
+	TitleContain TitleOptionEnum = iota
+	TitleEqual
+)
+
 // Option defines the option for the xlsx processing.
 type Option struct {
 	TemplateWorkbook, Workbook *spreadsheet.Workbook
 
 	Validations map[string][]string
+
+	TitleOption TitleOptionEnum
 }
 
 // OptionFn defines the func to change the option.
@@ -87,4 +96,8 @@ func parseExcel(f interface{}) (wb *spreadsheet.Workbook, err error) {
 // WithValidations defines the validations for the cells.
 func WithValidations(v map[string][]string) OptionFn {
 	return func(o *Option) { o.Validations = v }
+}
+
+func WithTitleEqual() OptionFn {
+	return func(o *Option) { o.TitleOption = TitleEqual }
 }

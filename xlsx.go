@@ -727,6 +727,7 @@ func (t *templateLocation) isValid() bool {
 var (
 	ErrFailToLocationTitleRow = errors.New("unable to location title row")
 	ErrNoExcelRead            = errors.New("no excel read")
+	ErrUnknownTitleOption            = errors.New("unknown title option")
 )
 
 func (x *Xlsx) locateTitleRow(titles []TitleField, customizedTitle bool) (*templateLocation, error) {
@@ -770,8 +771,17 @@ func (x *Xlsx) findTitledRow(titles []TitleField, customizedTitle bool, rows []s
 			}
 
 			for i, title := range titles {
-				if !strings.Contains(cellString, title.Title) {
-					continue
+				switch x.option.TitleOption {
+				case TitleEqual:
+					if cellString != title.Title {
+						continue
+					}
+				case TitleContain:
+					if !strings.Contains(cellString, title.Title) {
+						continue
+					}
+				default:
+					return 0, ErrUnknownTitleOption
 				}
 
 				col, err := cell.Column()

@@ -442,3 +442,24 @@ func TestLocationError(t *testing.T) {
 	err = x.Read(&dataImports)
 	assert.True(t, errors.Is(err, xlsx.ErrFailToLocationTitleRow))
 }
+
+type SchoolInfo struct {
+	Id    string `title:"编号"`
+	Name  string `title:"大学"`
+	Intro string `title:"大学简介"`
+}
+
+func TestTitleContain(t *testing.T) {
+
+	x, err := xlsx.New(xlsx.WithExcel("testdata/title-contain.xlsx"), xlsx.WithTitleEqual())
+	assert.Nil(t, err)
+
+	var schs []SchoolInfo
+	err = x.Read(&schs)
+	assert.Nil(t, err)
+
+	assert.Equal(t, []SchoolInfo{
+		{Id: "1001", Name: "测试大学1", Intro: "我是测试大学1简介"},
+		{Id: "1002", Name: "测试大学2", Intro: "我是测试大学2简介"},
+	}, schs)
+}

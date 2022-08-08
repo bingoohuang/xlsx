@@ -249,7 +249,7 @@ func startOfDay(t time.Time) time.Time {
 
 type memberStat2 struct {
 	Area      string `title:"区域" dataValidation:"Validation!A1:A3" sheet:"会员"`
-	Total     int    `title:"会员总数"`
+	Total     int    `title:"=会员总数"`
 	New       int    `title:"其中：新增"`
 	Effective int    `title:"其中：有效"`
 }
@@ -271,7 +271,7 @@ func TestValidationTmpl(t *testing.T) {
 
 type memberStat22 struct {
 	Area      string `title:"区域" dataValidation:"A22,B22,C22" sheet:"会员"`
-	Total     int    `title:"会员总数"`
+	Total     int    `title:"=会员总数"`
 	New       int    `title:"其中：新增"`
 	Effective int    `title:"其中：有效"`
 }
@@ -295,7 +295,7 @@ func TestValidation(t *testing.T) {
 
 type memberStat23 struct {
 	Area      string `title:"区域" dataValidation:"areas" sheet:"会员"`
-	Total     int    `title:"会员总数"`
+	Total     int    `title:"=会员总数"`
 	New       int    `title:"其中：新增"`
 	Effective int    `title:"其中：有效"`
 }

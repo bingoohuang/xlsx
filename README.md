@@ -92,7 +92,7 @@ then declare the data validation tag `dataValidation` like:
 ```go
 type Member struct {
 	Area      string `title:"区域" dataValidation:"Validation!A1:A3"`
-	Total     int    `title:"会员总数"`
+	Total     int    `title:"=会员总数"` // use modifier = to strictly equivalent of title searching， otherwise by Containing
 	New       int    `title:"其中：新增"`
 	Effective int    `title:"其中：有效"`
 }

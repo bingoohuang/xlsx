@@ -621,9 +621,31 @@ func (x *Xlsx) createReadSheet(wb *spreadsheet.Workbook, r *run) spreadsheet.She
 	return wbSheet
 }
 
+type Title struct {
+	Text   string
+	Strict bool // Should strictly equal to Text or only matched by Containing
+}
+
+func (t *Title) Matches(s string) bool {
+	if t.Strict {
+		return s == t.Text
+	}
+
+	return strings.Contains(s, t.Text)
+}
+
+func MakeTitle(title string) Title {
+	t := Title{Text: title}
+	t.Strict = strings.HasPrefix(title, "=")
+	if t.Strict {
+		t.Text = title[1:]
+	}
+	return t
+}
+
 type TitleField struct {
 	StructField reflect.StructField
-	Title       string
+	Title       Title
 	Column      string
 }
 
@@ -634,10 +656,10 @@ func collectTitles(fields []reflect.StructField) ([]TitleField, bool) {
 	for _, f := range fields {
 		tf := TitleField{
 			StructField: f,
-			Title:       f.Name,
+			Title:       MakeTitle(f.Name),
 		}
 		if t := f.Tag.Get("title"); t != "" {
-			tf.Title = t
+			tf.Title = MakeTitle(t)
 			customizedTitles = append(customizedTitles, tf)
 			titles = append(titles, tf)
 		} else {
@@ -710,7 +732,7 @@ func (x *Xlsx) writeTitles(fields []reflect.StructField, titles []TitleField) {
 	row := x.currentSheet.AddRow()
 
 	for i := range fields {
-		row.AddCell().SetString(titles[i].Title)
+		row.AddCell().SetString(titles[i].Title.Text)
 	}
 }
 
@@ -770,7 +792,7 @@ func (x *Xlsx) findTitledRow(titles []TitleField, customizedTitle bool, rows []s
 			}
 
 			for i, title := range titles {
-				if !strings.Contains(cellString, title.Title) {
+				if !title.Title.Matches(cellString) {
 					continue
 				}
 
@@ -781,7 +803,7 @@ func (x *Xlsx) findTitledRow(titles []TitleField, customizedTitle bool, rows []s
 				}
 
 				if titles[i].Column != "" {
-					return 0, perr.Wrapf(ErrFailToLocationTitleRow, "duplicate columns contains title %s", title.Title)
+					return 0, perr.Wrapf(ErrFailToLocationTitleRow, "duplicate columns contains title %s", title.Title.Text)
 				}
 
 				titles[i].Column = col

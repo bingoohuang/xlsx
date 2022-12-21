@@ -8,10 +8,9 @@ import (
 	"unsafe"
 
 	"github.com/unidoc/unioffice"
-	"github.com/unidoc/unioffice/spreadsheet/reference"
-
 	"github.com/unidoc/unioffice/schema/soo/sml"
 	"github.com/unidoc/unioffice/spreadsheet"
+	"github.com/unidoc/unioffice/spreadsheet/reference"
 )
 
 // RowCells returns a slice of cells.  The cells can be manipulated, but appending

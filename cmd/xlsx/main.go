@@ -21,7 +21,6 @@ func main() {
 	default:
 		readCellValues()
 	}
-
 }
 
 func readCellValues() {

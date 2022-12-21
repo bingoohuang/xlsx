@@ -13,7 +13,8 @@ import (
 
 // Upload uploads to uri with the file specified  in path.
 func Upload(ctx context.Context, uri, path, fileFieldName string,
-	extraParams map[string]string) (*bytes.Buffer, string, error) {
+	extraParams map[string]string,
+) (*bytes.Buffer, string, error) {
 	request, err := NewUploadRequest(ctx, uri, path, fileFieldName, extraParams)
 	if err != nil {
 		return nil, "", err
@@ -39,7 +40,8 @@ func Upload(ctx context.Context, uri, path, fileFieldName string,
 
 // NewUploadRequest Creates a new file Upload http request with optional extra params.
 func NewUploadRequest(ctx context.Context, uri string, path, fileFieldName string,
-	extraParams map[string]string) (*http.Request, error) {
+	extraParams map[string]string,
+) (*http.Request, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err

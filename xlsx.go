@@ -10,14 +10,11 @@ import (
 	"strings"
 	"time"
 
-	perr "github.com/pkg/errors"
-	"github.com/unidoc/unioffice/spreadsheet/reference"
-
-	"github.com/bingoohuang/xlsx/pkg/cast"
-
 	"github.com/araddon/dateparse"
-
+	"github.com/bingoohuang/xlsx/pkg/cast"
+	perr "github.com/pkg/errors"
 	"github.com/unidoc/unioffice/spreadsheet"
+	"github.com/unidoc/unioffice/spreadsheet/reference"
 )
 
 // Xlsx is the structure for xlsx processing.
@@ -313,7 +310,8 @@ func copyRow(from, to spreadsheet.Row) {
 }
 
 func (x *Xlsx) writePlaceholder(fields []reflect.StructField,
-	plMap map[string]PlaceholderValue, v reflect.Value) {
+	plMap map[string]PlaceholderValue, v reflect.Value,
+) {
 	vars := make(map[string]string)
 	placeholderCells := make(map[string]string)
 
@@ -502,7 +500,8 @@ func (x *Xlsx) readRows(beanType reflect.Type, l templateLocation, ignoreEmptyRo
 }
 
 func (x *Xlsx) createRowBean(beanType reflect.Type, l templateLocation,
-	row spreadsheet.Row, ignoreEmptyRows bool) (reflect.Value, error) {
+	row spreadsheet.Row, ignoreEmptyRows bool,
+) (reflect.Value, error) {
 	type templateCellValue struct {
 		TitleField
 		value string

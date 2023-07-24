@@ -62,14 +62,14 @@ func (x *Xlsx) Close() error {
 }
 
 type run struct {
-	isSlice     bool
-	isPtr       bool
 	beanType    reflect.Type
 	rawValue    reflect.Value
 	beanValue   reflect.Value
-	ttags       []reflect.StructTag
+	tags        []reflect.StructTag
 	fields      []reflect.StructField
 	writeOption WriteOption
+	isSlice     bool
+	isPtr       bool
 }
 
 func makeRun(beans interface{}, writeOptionFns []WriteOptionFn) *run {
@@ -107,16 +107,16 @@ func (r *run) isEmptySlice() bool {
 }
 
 func (r *run) collectTags() {
-	r.ttags = make([]reflect.StructTag, 0)
+	r.tags = make([]reflect.StructTag, 0)
 
 	for i := 0; i < r.beanType.NumField(); i++ {
 		f := r.beanType.Field(i)
-		r.ttags = append(r.ttags, f.Tag)
+		r.tags = append(r.tags, f.Tag)
 	}
 }
 
 func (r *run) FindTtag(tagName string) string {
-	for _, t := range r.ttags {
+	for _, t := range r.tags {
 		if v := t.Get(tagName); v != "" {
 			return v
 		}
@@ -503,8 +503,8 @@ func (x *Xlsx) createRowBean(beanType reflect.Type, l templateLocation,
 	row spreadsheet.Row, ignoreEmptyRows bool,
 ) (reflect.Value, error) {
 	type templateCellValue struct {
-		TitleField
 		value string
+		TitleField
 	}
 
 	values := make([]templateCellValue, len(l.titleFields))
@@ -643,9 +643,9 @@ func MakeTitle(title string) Title {
 }
 
 type TitleField struct {
-	StructField reflect.StructField
-	Title       Title
 	Column      string
+	Title       Title
+	StructField reflect.StructField
 }
 
 func collectTitles(fields []reflect.StructField) ([]TitleField, bool) {
@@ -736,9 +736,9 @@ func (x *Xlsx) writeTitles(fields []reflect.StructField, titles []TitleField) {
 }
 
 type templateLocation struct {
-	titledRowNum uint32
 	titleFields  []TitleField
 	templateRows []spreadsheet.Row
+	titledRowNum uint32
 }
 
 func (t *templateLocation) isValid() bool {
@@ -1042,15 +1042,15 @@ var (
 // ParseJavaTimeFormat converts the time format in java to golang.
 func ParseJavaTimeFormat(layout string) string {
 	l := layout
-	l = strings.Replace(l, "yyyy", "2006", -1)
-	l = strings.Replace(l, "yy", "06", -1)
-	l = strings.Replace(l, "MM", "01", -1)
-	l = strings.Replace(l, "dd", "02", -1)
-	l = strings.Replace(l, "HH", "15", -1)
-	l = strings.Replace(l, "mm", "04", -1)
-	l = strings.Replace(l, "ss", "05", -1)
+	l = strings.ReplaceAll(l, "yyyy", "2006")
+	l = strings.ReplaceAll(l, "yy", "06")
+	l = strings.ReplaceAll(l, "MM", "01")
+	l = strings.ReplaceAll(l, "dd", "02")
+	l = strings.ReplaceAll(l, "HH", "15")
+	l = strings.ReplaceAll(l, "mm", "04")
+	l = strings.ReplaceAll(l, "ss", "05")
 
-	return strings.Replace(l, "SSS", "000", -1)
+	return strings.ReplaceAll(l, "SSS", "000")
 }
 
 // ConvertNumberToFloat64 converts a number value to float64.

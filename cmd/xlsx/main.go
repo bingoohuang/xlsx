@@ -12,15 +12,34 @@ import (
 )
 
 func main() {
-	var demo string
-	flag.StringVar(&demo, "demo", "", "demo for what: placeholder")
+	demo := flag.String("demo", "", "demo for what: placeholder")
 	flag.Parse()
-	switch demo {
+
+	switch *demo {
+	case "1", "":
+		demo1()
 	case "placeholder", "ph":
 		placeholder()
 	default:
 		readCellValues()
 	}
+}
+
+func demo1() {
+	type memberStat struct {
+		Total     int `title:"会员总数" sheet:"会员"` // sheet可选，不声明则选择首个sheet页读写
+		New       int `title:"其中：新增"`
+		Effective int `title:"其中：有效"`
+	}
+
+	x, _ := xlsx.New()
+	defer x.Close()
+
+	x.Write([]memberStat{
+		{Total: 100, New: 50, Effective: 50},
+		{Total: 200, New: 60, Effective: 140},
+	})
+	x.SaveToFile("testdata/test1.xlsx")
 }
 
 func readCellValues() {

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"unsafe"
+	_ "unsafe"
 
 	"github.com/unidoc/unioffice"
 	"github.com/unidoc/unioffice/schema/soo/sml"
@@ -142,4 +143,11 @@ func hackTestV() {
 	if flag.Lookup("test.v") == nil {
 		flag.CommandLine.Var(&flagNoopValue{}, "test.v", "test.v")
 	}
+}
+
+//go:linkname _gdag github.com/unidoc/unioffice/spreadsheet._gdag
+var _gdag bool
+
+func init() {
+	_gdag = true
 }

@@ -78,6 +78,28 @@ func ExampleNew() {
 	// Output: Write true
 }
 
+func ExampleNewNoTitle() {
+	x, _ := xlsx.New()
+	defer x.Close()
+
+	type memberStatNoTitle struct {
+		Total     int `sheet:"会员" notitle:"1"`
+		New       int
+		Effective int
+	}
+
+	_ = x.Write([]memberStatNoTitle{
+		{Total: 100, New: 50, Effective: 50},
+		{Total: 200, New: 60, Effective: 140},
+	})
+
+	err := x.SaveToFile("testdata/out_demo1_notitle.xlsx")
+
+	// See: https://golang.org/pkg/testing/#hdr-Examples
+	fmt.Println("Write", err == nil)
+	// Output: Write true
+}
+
 func TestMerge(t *testing.T) {
 	x, _ := xlsx.New()
 	defer x.Close()
@@ -327,7 +349,7 @@ type RegisterTable struct {
 }
 
 func TestPlaceholder(t *testing.T) {
-	bs, _ := ioutil.ReadFile("testdata/placeholder.xlsx")
+	bs, _ := os.ReadFile("testdata/placeholder.xlsx")
 	x, _ := xlsx.New(xlsx.WithTemplate(bs))
 
 	defer x.Close()

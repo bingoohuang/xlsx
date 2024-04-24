@@ -115,6 +115,18 @@ func (r *run) collectTags() {
 	}
 }
 
+func (r *run) LookupTtag(tagName string) (string, bool) {
+	for _, t := range r.tags {
+		value, ok := t.Lookup(tagName)
+		if ok {
+			return value, ok
+		}
+
+	}
+
+	return "", false
+}
+
 func (r *run) FindTtag(tagName string) string {
 	for _, t := range r.tags {
 		if v := t.Get(tagName); v != "" {
@@ -234,7 +246,8 @@ func (x *Xlsx) Write(beans interface{}, writeOptionFns ...WriteOptionFn) error {
 	}
 
 	titles, customizedTitles := collectTitles(r.fields)
-	loc, err := x.locateTitleRow(titles, customizedTitles)
+	_, noTitle := r.LookupTtag("notitle")
+	loc, err := x.locateTitleRow(titles, customizedTitles, noTitle)
 
 	if err != nil && !errors.Is(err, ErrNoExcelRead) {
 		return err
@@ -247,7 +260,7 @@ func (x *Xlsx) Write(beans interface{}, writeOptionFns ...WriteOptionFn) error {
 		copyRowsUtilTitle(location, x.tmplSheet, x.currentSheet)
 	}
 
-	if !location.isValid() {
+	if !location.isValid() && !noTitle {
 		x.writeTitles(r.fields, titles)
 	}
 
@@ -435,7 +448,7 @@ func (x *Xlsx) Read(slicePtr interface{}) error {
 	ignoreEmptyRows := r.ignoreEmptyRows()
 
 	titles, customizedTitle := collectTitles(r.fields)
-	loc, err := x.locateTitleRow(titles, customizedTitle)
+	loc, err := x.locateTitleRow(titles, customizedTitle, false)
 	if err != nil {
 		return err
 	}
@@ -750,8 +763,8 @@ var (
 	ErrNoExcelRead            = errors.New("no excel read")
 )
 
-func (x *Xlsx) locateTitleRow(titles []TitleField, customizedTitle bool) (*templateLocation, error) {
-	if !x.hasInput() {
+func (x *Xlsx) locateTitleRow(titles []TitleField, customizedTitle bool, noTitle bool) (*templateLocation, error) {
+	if !x.hasInput() || noTitle {
 		return &templateLocation{}, ErrNoExcelRead
 	}
 

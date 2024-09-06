@@ -144,7 +144,7 @@ func (r *run) collectExportableFields() {
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
 
-		if f.PkgPath == "" {
+		if f.PkgPath == "" && f.Tag.Get("title") != "-" {
 			r.fields = append(r.fields, f)
 		}
 	}

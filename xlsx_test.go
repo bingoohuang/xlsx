@@ -78,6 +78,27 @@ func ExampleNew() {
 	// Output: Write true
 }
 
+func ExampleNewTitleVoid() {
+	x, _ := xlsx.New()
+	defer x.Close()
+
+	type memberStatTitleVoid struct {
+		Total     int `title:"total"`
+		New       int `title:"new"`
+		Effective int `title:"-"`
+	}
+
+	_ = x.Write([]memberStatTitleVoid{
+		{Total: 100, New: 50, Effective: 50},
+		{Total: 200, New: 60, Effective: 140},
+	})
+
+	err := x.SaveToFile("testdata/out_demo_titlevoid.xlsx")
+	// See: https://golang.org/pkg/testing/#hdr-Examples
+	fmt.Println("Write", err == nil)
+	// Output: Write true
+}
+
 func ExampleNewNoTitle() {
 	x, _ := xlsx.New()
 	defer x.Close()

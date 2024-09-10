@@ -2,9 +2,9 @@ package xlsx_test
 
 import (
 	"context"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/bingoohuang/xlsx"
@@ -31,7 +31,7 @@ func TestUpload(t *testing.T) {
 		ts.URL, "testdata/template.xlsx", "file", nil)
 	assert.Nil(t, err)
 
-	_ = ioutil.WriteFile("testdata/dl.xlsx", buf.Bytes(), 0600)
+	_ = os.WriteFile("testdata/dl.xlsx", buf.Bytes(), 0600)
 
 	assert.Equal(t, "file.xlsx", fn)
 }

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bingoohuang/gg/pkg/strcase"
+	"github.com/bingoohuang/ngg/ss"
 )
 
 // TryFind tries to find value by field name or tag value.
@@ -26,23 +26,23 @@ func TryAnyCase(name string, getter func(string) (interface{}, bool)) (interface
 		return value, true
 	}
 
-	if value, ok := getter(strcase.ToCamelLower(name)); ok {
+	if value, ok := getter(ss.ToCamelLower(name)); ok {
 		return value, true
 	}
 
-	if value, ok := getter(strcase.ToSnake(name)); ok {
+	if value, ok := getter(ss.ToSnake(name)); ok {
 		return value, true
 	}
 
-	if value, ok := getter(strcase.ToSnakeUpper(name)); ok {
+	if value, ok := getter(ss.ToSnakeUpper(name)); ok {
 		return value, true
 	}
 
-	if value, ok := getter(strcase.ToKebab(name)); ok {
+	if value, ok := getter(ss.ToKebab(name)); ok {
 		return value, true
 	}
 
-	if value, ok := getter(strcase.ToKebabUpper(name)); ok {
+	if value, ok := getter(ss.ToKebabUpper(name)); ok {
 		return value, true
 	}
 

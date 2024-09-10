@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"unsafe"
-	_ "unsafe"
 
 	"github.com/unidoc/unioffice"
 	"github.com/unidoc/unioffice/schema/soo/sml"

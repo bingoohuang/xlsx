@@ -12,7 +12,6 @@ import (
 
 	"github.com/araddon/dateparse"
 	"github.com/bingoohuang/xlsx/pkg/cast"
-	perr "github.com/pkg/errors"
 	"github.com/unidoc/unioffice/spreadsheet"
 	"github.com/unidoc/unioffice/spreadsheet/reference"
 )
@@ -815,7 +814,7 @@ func (x *Xlsx) findTitledRow(titles []TitleField, customizedTitle bool, rows []s
 				}
 
 				if titles[i].Column != "" {
-					return 0, perr.Wrapf(ErrFailToLocationTitleRow, "duplicate columns contains title %s", title.Title.Text)
+					return 0, fmt.Errorf("duplicate columns contains title %s: %w", title.Title.Text, ErrFailToLocationTitleRow)
 				}
 
 				titles[i].Column = col

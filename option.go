@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 
 	"github.com/unidoc/unioffice/spreadsheet"
@@ -74,7 +73,7 @@ func parseExcel(f interface{}) (wb *spreadsheet.Workbook, err error) {
 	case []byte:
 		return spreadsheet.Read(bytes.NewReader(ft), int64(len(ft)))
 	case io.Reader:
-		if bs, err = ioutil.ReadAll(ft); err != nil {
+		if bs, err = io.ReadAll(ft); err != nil {
 			return nil, err
 		}
 

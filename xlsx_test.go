@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -15,7 +14,7 @@ import (
 
 // ReadBytes reads bytes from the file.
 func ReadBytes(filename string) []byte {
-	b, _ := ioutil.ReadFile(filename)
+	b, _ := os.ReadFile(filename)
 	return b
 }
 
